@@ -30,7 +30,6 @@ dates.columns = ['Date']
 
 #-----------------------------------------------------------------
 #a) Caclulate Discount factors Z(D_i)
-
 #-----------------------------------------------------------------
 
 #Combine dates and zero rates 
@@ -41,18 +40,25 @@ zero_rates['Dates'] =np.array(dates[1:]) #We don't need 2004-09-01 for zeros
 zero_rates['T_30_360'] = np.array(dates[1:].apply(lambda x: 
 						(x - dates[0]).days - ((x-dates[0]).days)%30))/360
 
-zero_rates['Discount'] = 1/(1+zero_rates['Zero']/2)**(2*zero_rates['T_30_360'])
+zero_rates['Discount'] = 1/(1+(zero_rates['Zero']/100)/2)**(2*zero_rates['T_30_360'])
 
-plt.plot(zero_rates['Dates'],zero_rates['Discount'], 'bo--', markersize = '4')
-plt.xlabel('Maturity')
-plt.ylabel('Discount Factor')
-plt.title('Discount Factor vs Maturity')
-plt.show()
+# #Plot of Discount Factors
+# plt.plot(zero_rates['Dates'],zero_rates['Discount'], 'bo--', markersize = '4')
+# plt.xlabel('Maturity')
+# plt.ylabel('Discount Factor')
+# plt.title('Discount Factor vs Maturity')
+# plt.show()
+
+print("Discount Factors \n", zero_rates[['Dates','Zero','Discount']].head(25))
+
+#-----------------------------------------------------------------
+#b) Calculate quarterly-compounded forward rates between each maturity
+#-----------------------------------------------------------------
 
 
-print(zero_rates.head(25))
 
 
-if __name__ == '__main__':
-		# print(dates)
-		print(zero_rates.head(25))
+# if __name__ == '__main__':
+# 		# print(dates)
+# 		# print(zero_rates.head(25))
+# 		print('kevin')
