@@ -8,7 +8,12 @@ import matplotlib.pyplot as plt
 import sklearn as sk
 import datetime
 
-#----Part 1: Importing Data and Calibrating Data-----#
+#-----------------------------------------------------------------
+#Question 1: Hull-White Model
+#-----------------------------------------------------------------
+
+
+#----Importing Data ---#
 fwds = pd.read_csv('fwds_20040830.csv',header = None, names = ['Fwds'])
 zero = pd.read_csv('zero_rates_20040830.csv',header = None, names = ['Zero'])
 zr = np.array(zero['Zero'])
