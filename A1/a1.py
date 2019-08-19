@@ -8,12 +8,7 @@ import matplotlib.pyplot as plt
 import sklearn as sk
 import datetime
 
-#-----------------------------------------------------------------
-#Question 1: Hull-White Model
-#-----------------------------------------------------------------
-
-
-#----Importing Data ---#
+#----Part 1: Importing Data and Calibrating Data-----#
 fwds = pd.read_csv('fwds_20040830.csv',header = None, names = ['Fwds'])
 zero = pd.read_csv('zero_rates_20040830.csv',header = None, names = ['Zero'])
 zr = np.array(zero['Zero'])
@@ -49,8 +44,12 @@ start_date = dates[0]
 master_rates['Dates'] =np.array(dates) #We don't need 2004-09-01 for zeros
 
 #get 30/360 convention
-master_rates['T_30_360'] = np.array(dates.apply(lambda x: 
-						(x - dates[0]).days - ((x-dates[0]).days)%30))/360
+#Fix this
+# master_rates['T_30_360'] = np.array(dates.apply(lambda x: 
+# 						(x - dates[0]).days - ((x-dates[0]).days)%30))/360
+
+master_rates['T_30_360'] = np.array(master_rates.index*90/360)
+
 
 master_rates['Discount'] = 1/(1+(master_rates['Zero']/100)/2)**(2*master_rates['T_30_360'])
 
@@ -133,7 +132,5 @@ def d_1_2(flat_vol,forward_libor,t,strike,type = 1):
 # def caplet(master_rates,t_i,)
 
 
-# if __name__ == '__main__':
-# 		# print(dates)
-# 		# print(master_rates.head(25))
-# 		print('kevin')
+if __name__ == '__main__':
+		print(master_rates[['T_30_360','T_ACT_360']])
