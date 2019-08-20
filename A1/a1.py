@@ -7,6 +7,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sklearn as sk
 import datetime
+#Helper Functions
+def get_days_act_360(start_date,end_date):
+    return (end_date-start_date).days/360
+    
+def get_days_30I_360(start_date,end_date):
+    Y1 = start_date.year
+    Y2 = end_date.year
+    M1 = start_date.month
+    M2 = end_date.month
+    D1 = start_date.day
+    D2 = end_date.day
+    if D1==31:
+        D1=30
+    if D2==31:
+        D2=30
+    return (360*(Y2-Y1) + 30*(M2-M1) + (D2-D1))/360
 
 #----Part 1: Importing Data and Calibrating Data-----#
 fwds = pd.read_csv('fwds_20040830.csv',header = None, names = ['Fwds'])
@@ -19,21 +35,10 @@ master_rates['Zero'] = zr_temp
 atm_cap = pd.read_csv('atm_cap.csv', header = None) #extracted from 20040830_usd23_atm_caps file
 atm_cap.columns = ['Maturity', 'Black Imp Vol']
 
-
 #Import date column and format 
 dates = pd.read_csv('dates.csv',header = None, dtype = str) #from Bloomberg files USD23 tab
 dates = pd.to_datetime(dates[0])
 dates.columns = ['Date']
-
-#
-
-# ------(Optional) Plot of Black Implied Vols for ATM Caps ------
-# plt.plot(atm_cap['Maturity'], atm_cap['Black Imp Vol'], 'bo--')
-# plt.title('Black Implied Flat Vol for ATM Caps')
-# plt.xlabel('Maturities')
-# plt.ylabel('Black Imp Vol (%)')
-# plt.show()
-
 
 #-----------------------------------------------------------------
 #a) Caclulate Discount factors Z(D_i)
@@ -42,32 +47,10 @@ dates.columns = ['Date']
 #Combine dates and zero rates 
 start_date = dates[0]
 master_rates['Dates'] =np.array(dates) #We don't need 2004-09-01 for zeros
-
-#get 30/360 convention
-#Fix this
-# master_rates['T_30_360'] = np.array(dates.apply(lambda x: 
-# 						(x - dates[0]).days - ((x-dates[0]).days)%30))/360
-
-master_rates['T_30_360'] = np.array(master_rates.index*90/360)
-
-# This would be the days difference following the formula of the GSI session exactly. Small discrepancies in dates following holidays.
-master_rates['T_30_360_days'] = np.array(dates.apply(lambda x: 
-						360*(x.year - start_date.year) + 30*(x.month - start_date.month) + (x.day - start_date.day)))
-master_rates['T_30_360_years'] = master_rates['T_30_360_days']/360
-
-
+master_rates['T_30_360'] = np.array(dates.apply(lambda x: get_days_30I_360(start_date,x)))
 master_rates['Discount'] = 1/(1+(master_rates['Zero']/100)/2)**(2*master_rates['T_30_360'])
-master_rates['Discount_B'] = 1/(1+(master_rates['Zero']/100)/2)**(2*master_rates['T_30_360_years'])
-
-# #Plot of Discount Factors
-# plt.plot(master_rates['Dates'],master_rates['Discount'], 'bo--', markersize = '4')
-# plt.xlabel('Maturity')
-# plt.ylabel('Discount Factor')
-# plt.title('Discount Factor vs Maturity')
-# plt.show()
 
 print(master_rates)
-
 print("a) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head(25), "\n")
 
 #-----------------------------------------------------------------
@@ -75,8 +58,7 @@ print("a) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head(2
 #-----------------------------------------------------------------
 
 #Get ACT/360 Convention
-master_rates['T_ACT_360'] = np.array(dates.apply(lambda x: 
-						(x - dates[0]).days))/360 
+master_rates['T_ACT_360'] = np.array(dates.apply(lambda x: get_days_act_360(start_date,x))) 
 
 #T_i - T_i-1 where T_i is ACT/360 convention
 master_rates['Tau'] = master_rates['T_ACT_360'].diff(1)
@@ -87,9 +69,8 @@ forwards = np.array((1/master_rates['Tau'])*\
 master_rates['Forward'] = forwards
 
 print("b) Forward Rates \n", master_rates[['Dates','Discount','Forward']].head(25), "\n")
-
 #-----------------------------------------------------------------
-#c) Calculate quarterly-compounded forward rates between each maturity
+#c) Calculating the at-the-money (ATM) strike rates for each of the 15 caps
 #-----------------------------------------------------------------
 
 cap_master_df = pd.DataFrame()
@@ -111,7 +92,7 @@ print("c) ATM Strike Rates vs Maturity \n", cap_master_df, "\n")
 
 
 #-----------------------------------------------------------------
-#d) Calculate quarterly-compounded forward rates between each maturity
+#d) Estimating k and sigma
 #-----------------------------------------------------------------
 
 #Notes
