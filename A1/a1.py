@@ -1,6 +1,8 @@
 """///
 ABS Assignment 1
 Members: Kevin, Nico, Romain, Sherry, Trilok
+
+#THIS FILE WAS UPLOADED USING GIT
 """
 import pandas as pd
 import numpy as np
