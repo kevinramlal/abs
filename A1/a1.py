@@ -50,8 +50,14 @@ master_rates['Dates'] =np.array(dates) #We don't need 2004-09-01 for zeros
 
 master_rates['T_30_360'] = np.array(master_rates.index*90/360)
 
+# This would be the days difference following the formula of the GSI session exactly. Small discrepancies in dates following holidays.
+master_rates['T_30_360_days'] = np.array(dates.apply(lambda x: 
+						360*(x.year - start_date.year) + 30*(x.month - start_date.month) + (x.day - start_date.day)))
+master_rates['T_30_360_years'] = master_rates['T_30_360_days']/360
+
 
 master_rates['Discount'] = 1/(1+(master_rates['Zero']/100)/2)**(2*master_rates['T_30_360'])
+master_rates['Discount_B'] = 1/(1+(master_rates['Zero']/100)/2)**(2*master_rates['T_30_360_years'])
 
 # #Plot of Discount Factors
 # plt.plot(master_rates['Dates'],master_rates['Discount'], 'bo--', markersize = '4')
@@ -59,6 +65,8 @@ master_rates['Discount'] = 1/(1+(master_rates['Zero']/100)/2)**(2*master_rates['
 # plt.ylabel('Discount Factor')
 # plt.title('Discount Factor vs Maturity')
 # plt.show()
+
+print(master_rates)
 
 print("a) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head(25), "\n")
 
