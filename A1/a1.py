@@ -7,9 +7,9 @@ Members: Kevin, Nico, Romain, Sherry, Trilok
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import sklearn as sk
 import datetime
 from scipy.stats import norm
+from scipy.optimize import minimize
 #Helper Functions
 def get_days_act_360(start_date,end_date):
     return (end_date-start_date).days/360
@@ -133,14 +133,15 @@ def d_1_2(flat_vol,forward_libor,t,strike,type = 1):
 
 #index by np.arange(1,maturity,4)
 
-def caplet(master_rates,time_index,N, flat_vol, strike):
+def caplet_black(master_rates,time_index,N, flat_vol, strike):
     """
-    master_rates - DataFrame that contains dates, discount rates, and forward rates 
+    master_rates - DataFrame that contains dates, discount rates, and forward rates
     from above.
     time_index - index based on T_30_360 convenion (example - 0.75 -> 3)
+    Returns caplet value for a given time based on Black formula.
     """
     t_i = master_rates['Expiry_day_count'][time_index]/365
-    tau = master_rates['Tau'][time_index +1] 
+    tau = master_rates['Tau'][time_index +1]
     fwd = master_rates['Forward'][time_index+1]
     fv = flat_vol/100
     discount = master_rates['Discount'][time_index+1]
@@ -163,10 +164,68 @@ caplet_range = np.arange(1,maturity*4)
 # print(caplet_range)
 caplet_pv = []
 for index in caplet_range:
-    caplet_pv.append(caplet(master_rates,index,10000000,flat_vol,strike))
+    caplet_pv.append(caplet_black(master_rates,index,10000000,flat_vol,strike))
 print("------Prices of Caplets-------\n",caplet_pv,'\n')
 print("1 Year Cap Value : ", round(sum(caplet_pv),2))
 
+
+def caplet_HW(master_rates, time_index, N, flat_vol, strike, kappa):
+    """
+    master_rates - DataFrame that contains dates, discount rates, and forward rates
+    from above.
+    time_index - index based on T_30_360 convenion (example - 0.75 -> 3)
+    Returns caplet value for a given time based on Hull White model.
+    """
+    t_i = master_rates['Expiry_day_count'][time_index+1]/365
+    t_i1 = master_rates['Tau'][time_index]
+    tau = t_i - t_i1
+    discount = master_rates['Discount'][time_index+1]
+    discount_shift = master_rates['Discount'][time_index]
+    B = (1 - np.exp(-kappa*tau))/kappa
+    sigma_P = flat_vol*np.sqrt((1 - np.exp(-2*kappa*t_i1))/(2*kappa))*B
+    h = (1/sigma_P) * np.log(discount*(1+strike*tau)/discount_shift) + sigma_P/2
+    pv = N*(discount_shift * norm.pdf(-h+sigma_P) - (1+strike*tau)*discount*norm.pdf(-h))
+
+    return pv
+
+caplet_black(master_rates,index,10000000,flat_vol,strike)
+caplet_HW(master_rates,index,10000000,flat_vol,strike, 0.1)
+
+def cap_black(master_rates, N, flat_vol, cap_master):
+    """Returns cap value based on Black formula."""
+    maturity = cap_master['Maturity'][0]
+    #flat_vol = cap_master_df['Flat_Vol'][0]
+    strike = cap_master['ATM Strike'][0]
+    caplet_range = np.arange(1,maturity*4)
+    cap_pv = 0
+    for index in caplet_range:
+        cap_pv += caplet_black(master_rates,index,N,flat_vol,strike)
+    return cap_pv
+
+def cap_HW(master_rates, N, flat_vol, cap_master, kappa):
+    """Returns cap value based on HW model."""
+    maturity = cap_master['Maturity'][0]
+    #flat_vol = cap_master_df['Flat_Vol'][0]
+    strike = cap_master['ATM Strike'][0]
+    caplet_range = np.arange(1,maturity*4)
+    cap_pv = 0
+    for index in caplet_range:
+        cap_pv += caplet_HW(master_rates,index,N,flat_vol,strike, kappa)
+    return cap_pv
+
+cap_black(master_rates, 10000000, cap_master_df['Flat_Vol'][0], cap_master_df)
+cap_HW(master_rates, 10000000, cap_master_df['Flat_Vol'][0], cap_master_df, 0.2)
+
+def to_minimize(kappa, flat_vol):
+    res = 0
+    for i in range(15):
+        a = cap_black(master_rates, 10000000, cap_master_df['Flat_Vol'][0], cap_master_df)
+        a -= cap_HW(master_rates, 10000000, flat_vol, cap_master_df, kappa)
+        res += a**2
+    res = np.sqrt(res)
+    return res
+
+optimum = minimize(to_minimize, [30, 0.5])
 
 if __name__ == '__main__':
     #testing caplet
@@ -176,5 +235,5 @@ if __name__ == '__main__':
     caplet_range = np.arange(1,maturity*4)
     caplet_pv = []
     for index in caplet_range:
-        caplet_pv.append(caplet(master_rates,index,10000000,flat_vol,strike))
+        caplet_pv.append(caplet_black(master_rates,index,10000000,flat_vol,strike))
     # print(caplet_pv)
