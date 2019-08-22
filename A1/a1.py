@@ -2,7 +2,6 @@
 ABS Assignment 1
 Members: Kevin, Nico, Romain, Sherry, Trilok
 
-#THIS FILE WAS UPLOADED USING GIT
 """
 import pandas as pd
 import numpy as np
@@ -29,7 +28,10 @@ def get_days_30I_360(start_date,end_date):
 
 #----Part 1: Importing Data and Calibrating Data-----#
 fwds = pd.read_csv('fwds_20040830.csv',header = None, names = ['Fwds'])
-zero = pd.read_csv('zero_rates_20040830.csv',header = None, names = ['Zero'])
+# zero = pd.read_csv('zero_rates_20040830.csv',header = None, names = ['Zero'])
+##Created Custom Zero rates file that adds in extra zero rate for 2034-12-01
+zero = pd.read_csv('zero_rates_custom.csv',header = None, names = ['Zero'])
+
 zr = np.array(zero['Zero'])
 zr_temp = np.append([None],zr) #Need to have initial value of None since dates start at 9_01_2004
 master_rates = pd.DataFrame()
@@ -114,13 +116,13 @@ print("c) ATM Strike Rates vs Maturity \n", cap_master_df, "\n")
 
 
 
-#---------Implementing Blacks Formula
+#---------Implementing Blacks Formula---------------------#
 flat_vols = np.array(atm_cap['Black Imp Vol'])
-print(flat_vols)
+# print(flat_vols)
 
-forward_libor = np.array(fwds['Fwds'])
-print(forward_libor,len(forward_libor))
-master_rates['Forward_Libor'] = forward_libor #Has one extra entry at end that we cannot compute? 
+# forward_libor = np.array(fwds['Fwds'])
+# print(forward_libor,len(forward_libor))
+# master_rates['Forward_Libor'] = forward_libor #Has one extra entry at end that we cannot compute? 
 
 cap_master_df['Flat_Vol'] = flat_vols
 
@@ -166,7 +168,26 @@ caplet_pv = []
 for index in caplet_range:
     caplet_pv.append(caplet_black(master_rates,index,10000000,flat_vol,strike))
 print("------Prices of Caplets-------\n",caplet_pv,'\n')
-print("1 Year Cap Value : ", round(sum(caplet_pv),2))
+print("1 Year Cap Value : ", round(sum(caplet_pv),2),'\n')
+
+
+##------Pricing All Maturities-------##
+cap_price_list = []
+for cap_index in range(len(cap_master_df)):
+    maturity = cap_master_df['Maturity'][cap_index]
+    flat_vol = cap_master_df['Flat_Vol'][cap_index]
+    strike = cap_master_df['ATM Strike'][cap_index]
+    caplet_range = np.arange(1,maturity*4)
+# print(caplet_range)
+    caplet_pv = []
+    for index in caplet_range:
+        caplet_pv.append(caplet(master_rates,index,10000000,flat_vol,strike))
+    # print('Caplets under Cap Maturity :', maturity,"\n", caplet_pv)
+    # print('Price of Cap Maturity: ', maturity, "\n", sum(caplet_pv),"\n")
+    cap_price_list.append(round(sum(caplet_pv),3))
+
+cap_master_df['Cap Price'] = cap_price_list
+print('Summary of Cap \n', cap_master_df)
 
 
 def caplet_HW(master_rates, time_index, N, flat_vol, strike, kappa):
