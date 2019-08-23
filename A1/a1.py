@@ -120,10 +120,10 @@ print("c) ATM Strike Rates vs Maturity \n", cap_master_df, "\n")
 flat_vols = np.array(atm_cap['Black Imp Vol'])
 # print(flat_vols)
 
-# forward_libor = np.array(fwds['Fwds'])
-# print(forward_libor,len(forward_libor))
-# master_rates['Forward_Libor'] = forward_libor #Has one extra entry at end that we cannot compute? 
-
+forward_libor = np.array(fwds['Fwds'])
+fwd_libor_temp = [None]
+forward_libor = np.append(fwd_libor_temp,forward_libor)
+master_rates['Forward_Libor'] = forward_libor #Has one extra entry at end that we cannot compute? 
 cap_master_df['Flat_Vol'] = flat_vols
 
 def d_1_2(flat_vol,forward_libor,t,strike,type = 1):
@@ -144,7 +144,7 @@ def caplet_black(master_rates,time_index,N, flat_vol, strike):
     """
     t_i = master_rates['Expiry_day_count'][time_index]/365
     tau = master_rates['Tau'][time_index +1]
-    fwd = master_rates['Forward'][time_index+1]
+    fwd = master_rates['Forward_Libor'][time_index+1]/100 #Note used Libor Forward
     fv = flat_vol/100
     discount = master_rates['Discount'][time_index+1]
     d1 = d_1_2(fv,fwd,t_i,strike)
@@ -181,7 +181,7 @@ for cap_index in range(len(cap_master_df)):
 # print(caplet_range)
     caplet_pv = []
     for index in caplet_range:
-        caplet_pv.append(caplet(master_rates,index,10000000,flat_vol,strike))
+        caplet_pv.append(caplet_black(master_rates,index,10000000,flat_vol,strike))
     # print('Caplets under Cap Maturity :', maturity,"\n", caplet_pv)
     # print('Price of Cap Maturity: ', maturity, "\n", sum(caplet_pv),"\n")
     cap_price_list.append(round(sum(caplet_pv),3))
@@ -246,15 +246,16 @@ def to_minimize(kappa, flat_vol):
     res = np.sqrt(res)
     return res
 
-optimum = minimize(to_minimize, [30, 0.5])
+# optimum = minimize(to_minimize, x0 = 30, args= [0.5])
+# print(optimum)
 
-if __name__ == '__main__':
-    #testing caplet
-    maturity = cap_master_df['Maturity'][0]
-    flat_vol = cap_master_df['Flat_Vol'][0]
-    strike = cap_master_df['ATM Strike'][0]
-    caplet_range = np.arange(1,maturity*4)
-    caplet_pv = []
-    for index in caplet_range:
-        caplet_pv.append(caplet_black(master_rates,index,10000000,flat_vol,strike))
-    # print(caplet_pv)
+# if __name__ == '__main__':
+#     #testing caplet
+#     maturity = cap_master_df['Maturity'][0]
+#     flat_vol = cap_master_df['Flat_Vol'][0]
+#     strike = cap_master_df['ATM Strike'][0]
+#     caplet_range = np.arange(1,maturity*4)
+#     caplet_pv = []
+#     for index in caplet_range:
+#         caplet_pv.append(caplet_black(master_rates,index,10000000,flat_vol,strike))
+#     # print(caplet_pv)
