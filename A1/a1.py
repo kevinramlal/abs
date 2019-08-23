@@ -9,23 +9,15 @@ import matplotlib.pyplot as plt
 import datetime
 from scipy.stats import norm
 from scipy.optimize import minimize
+
+
+# Custom made classes
+import fixed_income
 import remic
-#Helper Functions
-def get_days_act_360(start_date,end_date):
-    return (end_date-start_date).days/360
-    
-def get_days_30I_360(start_date,end_date):
-    Y1 = start_date.year
-    Y2 = end_date.year
-    M1 = start_date.month
-    M2 = end_date.month
-    D1 = start_date.day
-    D2 = end_date.day
-    if D1==31:
-        D1=30
-    if D2==31:
-        D2=30
-    return (360*(Y2-Y1) + 30*(M2-M1) + (D2-D1))/360
+
+
+fi = fixed_income.FixedIncome()
+
 
 #----Part 1: Importing Data and Calibrating Data-----#
 fwds = pd.read_csv('fwds_20040830.csv',header = None, names = ['Fwds'])
@@ -57,7 +49,7 @@ dates_settle.columns = ['Settle_Date']
 #Combine dates and zero rates 
 start_date = dates[0]
 master_rates['Dates'] =np.array(dates) #We don't need 2004-09-01 for zeros
-master_rates['T_30_360'] = np.array(dates.apply(lambda x: get_days_30I_360(start_date,x)))
+master_rates['T_30_360'] = np.array(dates.apply(lambda x: fi.get_days_30I_360(start_date,x)))
 master_rates['Discount'] = 1/(1+(master_rates['Zero']/100)/2)**(2*master_rates['T_30_360'])
 master_rates['Expiry Dates'] = np.array(dates_settle)
 master_rates['Expiry_day_count'] = np.array(dates_settle.apply(lambda x: (x - master_rates['Dates'][0]).days))
@@ -70,7 +62,7 @@ print("a) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head(2
 #-----------------------------------------------------------------
 
 #Get ACT/360 Convention
-master_rates['T_ACT_360'] = np.array(dates.apply(lambda x: get_days_act_360(start_date,x))) 
+master_rates['T_ACT_360'] = np.array(dates.apply(lambda x: fi.get_days_act_360(start_date,x))) 
 
 #T_i - T_i-1 where T_i is ACT/360 convention
 master_rates['Tau'] = master_rates['T_ACT_360'].diff(1)
