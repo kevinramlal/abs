@@ -41,10 +41,10 @@ class REMIC:
 		pools = []
 
 		for pool_index in range(self.pools_info.shape[0]):
-			balance = pools_info.loc[pool_index, 'Original Balance']
-			r_month = pools_info.loc[pool_index, 'WAC']/12/100
-			term = pools_info.loc[pool_index, 'Term']
-			age = pools_info.loc[pool_index, 'Age']
+			balance = self.pools_info.loc[pool_index, 'Original Balance']
+			r_month = self.pools_info.loc[pool_index, 'WAC']/12/100
+			term = self.pools_info.loc[pool_index, 'Term']
+			age = self.pools_info.loc[pool_index, 'Age']
 			columns = ['PMT', 'Interest', 'Principal', 'CPR', 'SMM', 'Prepay CF', 'Balance']
 			pool = pd.DataFrame(np.zeros((self.maturity+1,7)), columns = columns)
 			pool.loc[0,'Balance'] = balance
@@ -72,8 +72,8 @@ class REMIC:
 		total_balance = 0
 		for group in self.principal_sequential_pay:
 			for cl in self.principal_sequential_pay[group]:
-				self.principal_groups_proportions[group] = self.principal_groups_proportions.get(group, 0) + classes_info.loc[cl, 'Original Balance']
-				total_balance += classes_info.loc[cl, 'Original Balance']
+				self.principal_groups_proportions[group] = self.principal_groups_proportions.get(group, 0) + self.classes_info.loc[cl, 'Original Balance']
+				total_balance += self.classes_info.loc[cl, 'Original Balance']
 		for group in self.principal_groups_proportions:
 			self.principal_groups_proportions[group] = float(self.principal_groups_proportions[group])/total_balance
 
@@ -137,33 +137,5 @@ class REMIC:
 		self.total_cf = self.classes_principal + self.classes_interest_cf
 
 		print(self.total_cf)
-
-
-if __name__ == '__main__':
-
-	# General info
-	today = '8/15/2004'
-	first_payment_date = '9/15/2004'
-	pool_interest_rate = 0.05
-
-	# General information of pools
-	pools_info = pd.read_csv('pools_general_info.csv', thousands=',')
-
-	# General information of classes
-	classes_info = pd.read_csv('classes_general_info.csv', thousands=',')
-
-	# Allocation sequence for principal
-	principal_sequential_pay = {'1': ['CA','CY'], '2': ['CG','VE','CM','GZ','TC','CZ']}
-
-	# Accruals accounts sequence
-	accruals_sequential_pay = {'GZ': ['VE','CM'], 'CZ': ['CG','VE','CM','GZ','TC']}
-
-	hw_remic = REMIC(today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay)
-	hw_remic.calculate_pool_cf(1)
-	hw_remic.calculate_classes_cf()
 	
-	print(pools_info)
-	print(classes_info)
-	print(principal_sequential_pay)
-	print(accruals_sequential_pay)
 

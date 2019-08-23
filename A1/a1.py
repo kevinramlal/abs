@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import datetime
 from scipy.stats import norm
 from scipy.optimize import minimize
+import remic
 #Helper Functions
 def get_days_act_360(start_date,end_date):
     return (end_date-start_date).days/360
@@ -248,6 +249,33 @@ def to_minimize(kappa, flat_vol):
 
 # optimum = minimize(to_minimize, x0 = 30, args= [0.5])
 # print(optimum)
+
+#----Part 2: Pricing REMIC bonds-----#
+
+# General info
+today = '8/15/2004'
+first_payment_date = '9/15/2004'
+pool_interest_rate = 0.05
+
+# General information of pools
+pools_info = pd.read_csv('pools_general_info.csv', thousands=',')
+
+# General information of classes
+classes_info = pd.read_csv('classes_general_info.csv', thousands=',')
+
+# Allocation sequence for principal
+principal_sequential_pay = {'1': ['CA','CY'], '2': ['CG','VE','CM','GZ','TC','CZ']}
+
+# Accruals accounts sequence
+accruals_sequential_pay = {'GZ': ['VE','CM'], 'CZ': ['CG','VE','CM','GZ','TC']}
+
+
+# REMIC cash flows
+hw_remic = remic.REMIC(today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay)
+hw_remic.calculate_pool_cf(1)
+hw_remic.calculate_classes_cf()
+
+
 
 # if __name__ == '__main__':
 #     #testing caplet
