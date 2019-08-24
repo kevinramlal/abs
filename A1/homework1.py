@@ -180,7 +180,7 @@ for cap_index in range(len(cap_master_df)):
     cap_price_list.append(round(sum(caplet_pv),3))
 
 cap_master_df['Cap Price - Black'] = cap_price_list
-print('Summary of Cap \n', cap_master_df)
+# print('Summary of Cap \n', cap_master_df)
 
 
 def caplet_HW(master_rates, time_index, N, flat_vol, strike, kappa):
@@ -207,21 +207,23 @@ def caplet_HW(master_rates, time_index, N, flat_vol, strike, kappa):
 
     return pv
 
-cap_price_list = []
-for cap_index in range(len(cap_master_df)):
-    maturity = cap_master_df['Maturity'][cap_index]
+cap_price_list_HW = []
+for cap_index_hw in range(len(cap_master_df['Maturity'])):
+    maturity_hw = cap_master_df['Maturity'][cap_index_hw]
     # flat_vol = cap_master_df['Flat_Vol'][cap_index]
-    strike = cap_master_df['ATM Strike'][cap_index]
-    caplet_range = np.arange(1,maturity*4)
+    strike_hw = cap_master_df['ATM Strike'][cap_index_hw]
+    caplet_range_hw = np.arange(1,maturity_hw*4)
 # print(caplet_range)
-    caplet_pv = []
-    for index in caplet_range:
-        caplet_pv.append(caplet_HW(master_rates,index,10000000,15,strike,700))
+    caplet_pv_hw = []
+    for index_hw in caplet_range_hw:
+        # print('kevin')
+        # print(caplet_HW(master_rates,index,10000000,15,strike,0.11))
+        caplet_pv_hw.append(caplet_HW(master_rates,index_hw,10000000,1.45,strike,0.11))
     # print('Caplets under Cap Maturity :', maturity,"\n", caplet_pv)
     # print('Price of Cap Maturity: ', maturity, "\n", sum(caplet_pv),"\n")
-    cap_price_list.append(round(sum(caplet_pv),2))
+    cap_price_list_HW.append(round(sum(caplet_pv_hw),2))
 
-cap_master_df['Cap Price HW'] = cap_price_list
+cap_master_df['Cap Price HW'] = cap_price_list_HW
 print('Summary of Cap \n', cap_master_df)
 
 # caplet_black(master_rates,index,10000000,flat_vol,strike)
