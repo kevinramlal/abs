@@ -54,7 +54,6 @@ master_rates['Discount'] = 1/(1+(master_rates['Zero']/100)/2)**(2*master_rates['
 master_rates['Expiry Dates'] = np.array(dates_settle)
 master_rates['Expiry_day_count'] = np.array(dates_settle.apply(lambda x: (x - master_rates['Dates'][0]).days))
 
-print(master_rates)
 print("a) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head(25), "\n")
 
 #-----------------------------------------------------------------
@@ -100,19 +99,8 @@ print("c) ATM Strike Rates vs Maturity \n", cap_master_df, "\n")
 #d) Estimating k and sigma
 #-----------------------------------------------------------------
 
-#Notes
-#implement Black's Formula 
-#For this question we access forward libor rates and flat vols
-#Caps have quarterly caplets in this question
-#summing over tau's from 0 to expiry (multiply Maturity by 4)
-#use the same flat vol for all quarterly caplets when calculating a specific cap
-
-
-
 #---------Implementing Blacks Formula---------------------#
 flat_vols = np.array(atm_cap['Black Imp Vol'])
-# print(flat_vols)
-
 forward_libor = np.array(fwds['Fwds'])
 fwd_libor_temp = [None]
 forward_libor = np.append(fwd_libor_temp,forward_libor)
@@ -150,84 +138,21 @@ def caplet_black(master_rates,time_index,N, flat_vol, strike):
 
     return pv
 
-###TEST CASE: MATCHES WITH EXCEL SHEET###
-print("-------Test Case: 1 Year Cap--------\n")
-maturity = cap_master_df['Maturity'][0]
-flat_vol = cap_master_df['Flat_Vol'][0]
-strike = cap_master_df['ATM Strike'][0]
-caplet_range = np.arange(1,maturity*4)
-# print(caplet_range)
-caplet_pv = []
-for index in caplet_range:
-    caplet_pv.append(caplet_black(master_rates,index,10000000,flat_vol,strike))
-print("------Prices of Caplets-------\n",caplet_pv,'\n')
-print("1 Year Cap Value : ", round(sum(caplet_pv),2),'\n')
-
-
-##------Pricing All Maturities-------##
-cap_price_list = []
-for cap_index in range(len(cap_master_df)):
-    maturity = cap_master_df['Maturity'][cap_index]
-    flat_vol = cap_master_df['Flat_Vol'][cap_index]
-    strike = cap_master_df['ATM Strike'][cap_index]
-    caplet_range = np.arange(1,maturity*4)
-# print(caplet_range)
-    caplet_pv = []
-    for index in caplet_range:
-        caplet_pv.append(caplet_black(master_rates,index,10000000,flat_vol,strike))
-    # print('Caplets under Cap Maturity :', maturity,"\n", caplet_pv)
-    # print('Price of Cap Maturity: ', maturity, "\n", sum(caplet_pv),"\n")
-    cap_price_list.append(round(sum(caplet_pv),3))
-
-cap_master_df['Cap Price - Black'] = cap_price_list
-# print('Summary of Cap \n', cap_master_df)
-
-
-def caplet_HW(master_rates, time_index, N, flat_vol, strike, kappa):
+def caplet_hull_white(master_rates,index,N,vol,kappa, strike_input):
     """
-    master_rates - DataFrame that contains dates, discount rates, and forward rates
-    from above.
-    time_index - index based on T_30_360 convenion (example - 0.75 -> 3)
-    Returns caplet value for a given time based on Hull White model.
+    Similiar parameters as Black model but needs constant vol and kappa
     """
-    t_i = master_rates['Expiry_day_count'][time_index+1]/365
-    t_i1 = master_rates['Expiry_day_count'][time_index]/365
-    t_diff = t_i1 - t_i
-    # print(t_diff)
-    tau = (master_rates ['Tau'][time_index+1])/360
-    discount = master_rates['Discount'][time_index+1]
-    discount_shift = master_rates['Discount'][time_index]
-    B = (1 - np.exp(-kappa*tau))/kappa
-    # print(B)
-    # print("Check: ", (np.exp(-2*kappa*t_i1))/0.2)
-    sigma_P = (flat_vol/100)*np.sqrt((1 - np.exp(-2*kappa*t_i1))/(2*kappa))*B
-    # print(sigma_P)
-    h = (1/sigma_P) * np.log(discount*(1+strike*tau)/discount_shift) + sigma_P/2
-    pv = (N/(1+strike*tau))*(discount_shift * norm.cdf(-h+sigma_P) - (strike*tau)*discount*norm.cdf(-h))
+    tau = master_rates ['Tau'][index+1]
+    t_i = master_rates['Expiry_day_count'][index]/365
+    discount = master_rates['Discount'][index+1]
+    disc_shift = master_rates['Discount'][index]
+    b = (1/kappa)*(1 - np.exp(-kappa*tau))
+    sigma_p = b*vol*np.sqrt((1- np.exp(-2*kappa*t_i))/(2*kappa))
+    d1 = (1/sigma_p)*np.log(discount/(disc_shift*strike_input)) + sigma_p/2
+    d2 = d1 - sigma_p
 
-    return pv
-
-cap_price_list_HW = []
-for cap_index_hw in range(len(cap_master_df['Maturity'])):
-    maturity_hw = cap_master_df['Maturity'][cap_index_hw]
-    # flat_vol = cap_master_df['Flat_Vol'][cap_index]
-    strike_hw = cap_master_df['ATM Strike'][cap_index_hw]
-    caplet_range_hw = np.arange(1,maturity_hw*4)
-# print(caplet_range)
-    caplet_pv_hw = []
-    for index_hw in caplet_range_hw:
-        # print('kevin')
-        # print(caplet_HW(master_rates,index,10000000,15,strike,0.11))
-        caplet_pv_hw.append(caplet_HW(master_rates,index_hw,10000000,1.45,strike,0.11))
-    # print('Caplets under Cap Maturity :', maturity,"\n", caplet_pv)
-    # print('Price of Cap Maturity: ', maturity, "\n", sum(caplet_pv),"\n")
-    cap_price_list_HW.append(round(sum(caplet_pv_hw),2))
-
-cap_master_df['Cap Price HW'] = cap_price_list_HW
-print('Summary of Cap \n', cap_master_df)
-
-# caplet_black(master_rates,index,10000000,flat_vol,strike)
-# caplet_HW(master_rates,index,10000000,flat_vol,strike, 0.001)
+    V = (N/strike_input)*(strike_input*disc_shift*norm.cdf(-d2) - discount*norm.cdf(-d1))
+    return V
 
 def cap_black(master_rates, maturity_index, N, cap_master):
     """Returns cap value based on Black formula."""
@@ -240,7 +165,7 @@ def cap_black(master_rates, maturity_index, N, cap_master):
         cap_pv += caplet_black(master_rates,index,N,flat_vol,strike)
     return cap_pv
 
-def cap_HW(master_rates,maturity_index, fv, N, cap_master, kappa):
+def cap_HW(master_rates,maturity_index, vol, N, cap_master, kappa):
     """Returns cap value based on HW model."""
     maturity = cap_master['Maturity'][maturity_index]
     # flat_vol = cap_master['Flat_Vol'][maturity_index]
@@ -248,40 +173,65 @@ def cap_HW(master_rates,maturity_index, fv, N, cap_master, kappa):
     caplet_range = np.arange(1,maturity*4)
     cap_pv = 0
     for index in caplet_range:
-        cap_pv += caplet_HW(master_rates,index,N,fv,strike, kappa)
+        tau = master_rates['Tau'][index+1]
+        strike_input = (1/(1+strike*tau))
+        clet = caplet_hull_white(master_rates,index,10000000,vol,kappa,strike_input)
+        cap_pv += clet
+
     return cap_pv
-
-# cap_black(master_rates, 0,10000000, cap_master_df)
-# print(cap_HW(master_rates,0, 10000000,cap_master_df, 32.71))
-
-
 
 def to_minimize(params):
     kappa = params[0]
     fv = params[1]
     res = 0
     for i in range(15):
-        err = 0
-        err += cap_black(master_rates,i, 10000000,  cap_master_df)
-        err -= cap_HW(master_rates,i, fv,10000000,  cap_master_df, kappa)
+        err = cap_black(master_rates,i, 10000000,  cap_master_df) - cap_HW(master_rates,i, fv,10000000, cap_master_df, kappa)
         res += err**2
     res = np.sqrt(res)
     return res
 
-def constraintk(x):
-    return x[0]
-def constraints(x):
-    return x[1]
-    
-# con = [{'type': 'ineq', 'fun': constraintk},
-#     {'type': 'ineq', 'fun': constraints}]
-con = [{'type': 'ineq', 'fun': constraintk}]
-#     {'type': 'ineq', 'fun': constraints}]
 
-optimum = minimize(to_minimize, x0 = [20, 1], constraints=con)
+##Version A: Run this section instead of Version B see minimizer at work - takes a few mins
+#-------------------------------------------------
+# optimum = minimize(to_minimize, x0 = [0.20, 0.010])
+# print("Optimal Kappa: ", optimum.x[0],"\n", "Optimal Vol: ", optimum.x[1])
+# opti_kap = optimum.x[0] 
+# opti_vol = optimum.x[1]
+#---------------------------------------------------
 
 
-print(optimum.x)
+##Version B: Hardcoded optimized kappa and vol for quicker run-time 
+#--------------------------------------------------
+#Uncomment this to run code faster (don't need to run optimizer)
+opti_kap = 0.11469962
+opti_vol = 0.01456547
+#------------------------------------------------------
+
+
+#---------
+cap_price_list_black = []
+cap_price_list_hull = []
+for cap_index in range(len(cap_master_df)):
+    maturity = cap_master_df['Maturity'][cap_index]
+    flat_vol = cap_master_df['Flat_Vol'][cap_index]
+    strike = cap_master_df['ATM Strike'][cap_index]
+    caplet_range = np.arange(1,maturity*4)
+    caplet_black_pv = []
+    caplet_hw_pv = []
+    for index in caplet_range:
+        caplet_black_pv.append(caplet_black(master_rates,index,10000000,flat_vol,strike))
+        
+        tau = master_rates['Tau'][index+1]
+        strike_input = (1/(1+strike*tau))
+        caplet_hw_pv.append(caplet_hull_white(master_rates,index,10000000,opti_vol, opti_kap,strike_input))
+    # print('Caplets under Cap Maturity :', maturity,"\n", caplet_pv)
+    # print('Price of Cap Maturity: ', maturity, "\n", sum(caplet_pv),"\n")
+    cap_price_list_black.append(round(sum(caplet_black_pv),3))
+    cap_price_list_hull.append(round(sum(caplet_hw_pv),3))
+cap_master_df['Cap Prices - Black'] = cap_price_list_black
+cap_master_df['Cap Prices - Hull'] = cap_price_list_hull
+print("d) Summary of Cap Pricing", cap_master_df, " \n Optimized Kappa: ", opti_kap, \
+    "\n", "Optimized Vol: ", opti_vol)
 
 #----Part 2: Pricing REMIC bonds-----#
 
