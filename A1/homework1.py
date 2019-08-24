@@ -179,7 +179,7 @@ for cap_index in range(len(cap_master_df)):
     # print('Price of Cap Maturity: ', maturity, "\n", sum(caplet_pv),"\n")
     cap_price_list.append(round(sum(caplet_pv),3))
 
-cap_master_df['Cap Price'] = cap_price_list
+cap_master_df['Cap Price - Black'] = cap_price_list
 print('Summary of Cap \n', cap_master_df)
 
 
@@ -191,81 +191,120 @@ def caplet_HW(master_rates, time_index, N, flat_vol, strike, kappa):
     Returns caplet value for a given time based on Hull White model.
     """
     t_i = master_rates['Expiry_day_count'][time_index+1]/365
-    t_i1 = master_rates['Tau'][time_index]
-    tau = t_i - t_i1
+    t_i1 = master_rates['Expiry_day_count'][time_index]/365
+    t_diff = t_i1 - t_i
+    # print(t_diff)
+    tau = (master_rates ['Tau'][time_index+1])/360
     discount = master_rates['Discount'][time_index+1]
     discount_shift = master_rates['Discount'][time_index]
     B = (1 - np.exp(-kappa*tau))/kappa
-    sigma_P = flat_vol*np.sqrt((1 - np.exp(-2*kappa*t_i1))/(2*kappa))*B
+    # print(B)
+    # print("Check: ", (np.exp(-2*kappa*t_i1))/0.2)
+    sigma_P = (flat_vol/100)*np.sqrt((1 - np.exp(-2*kappa*t_i1))/(2*kappa))*B
+    # print(sigma_P)
     h = (1/sigma_P) * np.log(discount*(1+strike*tau)/discount_shift) + sigma_P/2
-    pv = N*(discount_shift * norm.pdf(-h+sigma_P) - (1+strike*tau)*discount*norm.pdf(-h))
+    pv = (N/(1+strike*tau))*(discount_shift * norm.cdf(-h+sigma_P) - (strike*tau)*discount*norm.cdf(-h))
 
     return pv
 
-caplet_black(master_rates,index,10000000,flat_vol,strike)
-caplet_HW(master_rates,index,10000000,flat_vol,strike, 0.1)
+cap_price_list = []
+for cap_index in range(len(cap_master_df)):
+    maturity = cap_master_df['Maturity'][cap_index]
+    # flat_vol = cap_master_df['Flat_Vol'][cap_index]
+    strike = cap_master_df['ATM Strike'][cap_index]
+    caplet_range = np.arange(1,maturity*4)
+# print(caplet_range)
+    caplet_pv = []
+    for index in caplet_range:
+        caplet_pv.append(caplet_HW(master_rates,index,10000000,15,strike,700))
+    # print('Caplets under Cap Maturity :', maturity,"\n", caplet_pv)
+    # print('Price of Cap Maturity: ', maturity, "\n", sum(caplet_pv),"\n")
+    cap_price_list.append(round(sum(caplet_pv),2))
 
-def cap_black(master_rates, N, flat_vol, cap_master):
+cap_master_df['Cap Price HW'] = cap_price_list
+print('Summary of Cap \n', cap_master_df)
+
+# caplet_black(master_rates,index,10000000,flat_vol,strike)
+# caplet_HW(master_rates,index,10000000,flat_vol,strike, 0.001)
+
+def cap_black(master_rates, maturity_index, N, cap_master):
     """Returns cap value based on Black formula."""
-    maturity = cap_master['Maturity'][0]
-    #flat_vol = cap_master_df['Flat_Vol'][0]
-    strike = cap_master['ATM Strike'][0]
+    maturity = cap_master['Maturity'][maturity_index]
+    flat_vol = cap_master['Flat_Vol'][maturity_index]
+    strike = cap_master['ATM Strike'][maturity_index]
     caplet_range = np.arange(1,maturity*4)
     cap_pv = 0
     for index in caplet_range:
         cap_pv += caplet_black(master_rates,index,N,flat_vol,strike)
     return cap_pv
 
-def cap_HW(master_rates, N, flat_vol, cap_master, kappa):
+def cap_HW(master_rates,maturity_index, fv, N, cap_master, kappa):
     """Returns cap value based on HW model."""
-    maturity = cap_master['Maturity'][0]
-    #flat_vol = cap_master_df['Flat_Vol'][0]
-    strike = cap_master['ATM Strike'][0]
+    maturity = cap_master['Maturity'][maturity_index]
+    # flat_vol = cap_master['Flat_Vol'][maturity_index]
+    strike = cap_master['ATM Strike'][maturity_index]
     caplet_range = np.arange(1,maturity*4)
     cap_pv = 0
     for index in caplet_range:
-        cap_pv += caplet_HW(master_rates,index,N,flat_vol,strike, kappa)
+        cap_pv += caplet_HW(master_rates,index,N,fv,strike, kappa)
     return cap_pv
 
-cap_black(master_rates, 10000000, cap_master_df['Flat_Vol'][0], cap_master_df)
-cap_HW(master_rates, 10000000, cap_master_df['Flat_Vol'][0], cap_master_df, 0.2)
+# cap_black(master_rates, 0,10000000, cap_master_df)
+# print(cap_HW(master_rates,0, 10000000,cap_master_df, 32.71))
 
-def to_minimize(kappa, flat_vol):
+
+
+def to_minimize(params):
+    kappa = params[0]
+    fv = params[1]
     res = 0
     for i in range(15):
-        a = cap_black(master_rates, 10000000, cap_master_df['Flat_Vol'][0], cap_master_df)
-        a -= cap_HW(master_rates, 10000000, flat_vol, cap_master_df, kappa)
-        res += a**2
+        err = 0
+        err += cap_black(master_rates,i, 10000000,  cap_master_df)
+        err -= cap_HW(master_rates,i, fv,10000000,  cap_master_df, kappa)
+        res += err**2
     res = np.sqrt(res)
     return res
 
-# optimum = minimize(to_minimize, x0 = 30, args= [0.5])
-# print(optimum)
+def constraintk(x):
+    return x[0]
+def constraints(x):
+    return x[1]
+    
+# con = [{'type': 'ineq', 'fun': constraintk},
+#     {'type': 'ineq', 'fun': constraints}]
+con = [{'type': 'ineq', 'fun': constraintk}]
+#     {'type': 'ineq', 'fun': constraints}]
+
+optimum = minimize(to_minimize, x0 = [20, 1], constraints=con)
+
+
+print(optimum.x)
 
 #----Part 2: Pricing REMIC bonds-----#
 
 # General info
-today = '8/15/2004'
-first_payment_date = '9/15/2004'
-pool_interest_rate = 0.05
+# today = '8/15/2004'
+# first_payment_date = '9/15/2004'
+# pool_interest_rate = 0.05
 
-# General information of pools
-pools_info = pd.read_csv('pools_general_info.csv', thousands=',')
+# # General information of pools
+# pools_info = pd.read_csv('pools_general_info.csv', thousands=',')
 
-# General information of classes
-classes_info = pd.read_csv('classes_general_info.csv', thousands=',')
+# # General information of classes
+# classes_info = pd.read_csv('classes_general_info.csv', thousands=',')
 
-# Allocation sequence for principal
-principal_sequential_pay = {'1': ['CA','CY'], '2': ['CG','VE','CM','GZ','TC','CZ']}
+# # Allocation sequence for principal
+# principal_sequential_pay = {'1': ['CA','CY'], '2': ['CG','VE','CM','GZ','TC','CZ']}
 
-# Accruals accounts sequence
-accruals_sequential_pay = {'GZ': ['VE','CM'], 'CZ': ['CG','VE','CM','GZ','TC']}
+# # Accruals accounts sequence
+# accruals_sequential_pay = {'GZ': ['VE','CM'], 'CZ': ['CG','VE','CM','GZ','TC']}
 
 
-# REMIC cash flows
-hw_remic = remic.REMIC(today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay)
-hw_remic.calculate_pool_cf(1)
-hw_remic.calculate_classes_cf()
+# # REMIC cash flows
+# hw_remic = remic.REMIC(today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay)
+# hw_remic.calculate_pool_cf(1)
+# hw_remic.calculate_classes_cf()
 
 
 
