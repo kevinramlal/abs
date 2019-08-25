@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import datetime
 from scipy.stats import norm
 from scipy.optimize import minimize
-
+from scipy import interpolate
 
 # Custom made classes
 import fixed_income
@@ -233,6 +233,58 @@ cap_master_df['Cap Prices - Hull'] = cap_price_list_hull
 print("d) Summary of Cap Pricing", cap_master_df, " \n Optimized Kappa: ", opti_kap, \
     "\n", "Optimized Vol: ", opti_vol)
 
+#--------------------------------------------------------------
+#e)  Estimate theta(t) from today t_0 to 30-years with timestep 1/2
+#--------------------------------------------------------------
+
+#First we need to interpolate the monthly discount factors from quarterly ones
+
+# disc_quart = np.array(master_rates ['Discount']).astype(float)
+# x_quart = np.array(master_rates.index)*3 #convert to monthly count 
+# x_monthly = np.arange(0,x_quart[-1]+1,1) 
+# disc_monthly = np.interp(x_monthly,x_quart,disc_quart)
+# print(disc_quart, disc_monthly,x_quart,x_monthly)
+
+disc_quart = np.array(master_rates ['Discount']).astype(float)
+x_quart = np.array(master_rates.index)/4 #convert to monthly count 
+x_monthly = np.linspace(0,x_quart[-1],364)
+disc_monthly_f = interpolate.UnivariateSpline(x_quart,disc_quart)
+disc_monthly = disc_monthly_f(x_monthly)
+
+
+plt.plot(x_quart,disc_quart, 'b1', ms = 6, label = 'Quarterly Discount')
+plt.plot(x_monthly,disc_monthly ,'k', label = "Interpolated Monthly Discount")
+plt.title('e) Interpolated Monthly Forward')
+plt.xlabel('Months after 9-01-2004')
+plt.ylabel('Discount')
+plt.legend(loc = 'upper right')
+plt.show()
+
+#Next we need to find obtain f_m(0,t) usin our monthly diiscount rates
+f_m_func = disc_monthly_f.derivative()
+fm = np.array(f_m_func(x_monthly)).astype(float)
+print(fm)
+print(len(fm))
+#Next we need to take the partial derivative of f_m wrt time
+d_fm_func = f_m_func.derivative()
+d_fm = np.array(d_fm_func(x_monthly)).astype(float)
+print(d_fm)
+print(len(d_fm))
+# print(len(x_monthly))
+
+# pd_fm = np.diff(f_m)/(1/12)
+theta = d_fm + opti_kap*fm + ((opti_vol**2)/(2*opti_kap))* \
+                (1 - np.exp(-2*opti_kap*(x_monthly)))
+print(theta)
+# print(len(theta))
+
+plt.plot(x_monthly, theta)
+plt.title('e) Theta vs. Time')
+plt.xlabel('Time (Years)')
+plt.ylabel('Theta')
+plt.show()
+
+#-----------------------------------------------------------------------------
 #----Part 2: Pricing REMIC bonds-----#
 
 # General info
