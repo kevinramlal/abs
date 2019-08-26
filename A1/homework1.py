@@ -64,7 +64,8 @@ print("\na) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head
 
 plt.plot(master_rates['Dates'], master_rates['Discount'], 'b', ms = 6)
 plt.xlabel('Date')
-plt.ylabel('Discount')
+plt.ylabel('Discount Rate')
+plt.title('Discount (Quarterly)')
 plt.savefig('1a_discount.eps', format='eps')
 plt.show()
 
@@ -80,7 +81,7 @@ master_rates['Tau'] = master_rates['T_ACT_360'].diff(1)
 
 #Forward Rates 
 forwards = np.array((1/master_rates['Tau'])*\
-						((-master_rates['Discount'].diff(1))/master_rates['Discount']))
+                        ((-master_rates['Discount'].diff(1))/master_rates['Discount']))
 
 master_rates['Forward'] = forwards
 
@@ -90,6 +91,7 @@ print("\nb) Forward Rates \n", master_rates[['Dates','Discount','Forward']].head
 plt.plot(master_rates['Dates'], master_rates['Forward'], 'b', ms = 6, label = "Forward Rate")
 plt.xlabel('Date')
 plt.ylabel('Forward Rate')
+plt.title('Forward Rate')
 plt.savefig('1b_forward.eps', format='eps')
 plt.show()
 
@@ -104,10 +106,10 @@ strike = []
 
 #The following code corresponds to the equation for X_n in c)
 for m in cap_master_df['Maturity']:
-	x_n = np.sum(master_rates['Tau'][2:4*m +1]*\
-			master_rates['Forward'][2:4*m +1]*master_rates['Discount'][2:4*m +1])/\
-			np.sum(master_rates['Tau'][2:4*m +1]*master_rates['Discount'][2:4*m +1])
-	strike.append(x_n)
+    x_n = np.sum(master_rates['Tau'][2:4*m +1]*\
+            master_rates['Forward'][2:4*m +1]*master_rates['Discount'][2:4*m +1])/\
+            np.sum(master_rates['Tau'][2:4*m +1]*master_rates['Discount'][2:4*m +1])
+    strike.append(x_n)
 
 
 cap_master_df['ATM Strike'] = strike
@@ -128,11 +130,11 @@ master_rates['Forward_Libor'] = forward_libor #Has one extra entry at end that w
 cap_master_df['Flat_Vol'] = flat_vols
 
 def d_1_2(flat_vol,forward_libor,t,strike,type = 1):
-	d1 = (1/(flat_vol*np.sqrt(t)))*np.log(forward_libor/strike) + 0.5*flat_vol*np.sqrt(t)
-	if type == 1:
-		return d1
-	elif type == 2:
-		return d1 - flat_vol*np.sqrt(t)
+    d1 = (1/(flat_vol*np.sqrt(t)))*np.log(forward_libor/strike) + 0.5*flat_vol*np.sqrt(t)
+    if type == 1:
+        return d1
+    elif type == 2:
+        return d1 - flat_vol*np.sqrt(t)
 
 #index by np.arange(1,maturity,4)
 
@@ -259,46 +261,35 @@ print("d) Summary of Cap Pricing", cap_master_df, " \n Optimized Kappa: ", opti_
 
 #First we need to interpolate the monthly discount factors from quarterly ones
 
-# disc_quart = np.array(master_rates ['Discount']).astype(float)
-# x_quart = np.array(master_rates.index)*3 #convert to monthly count 
-# x_monthly = np.arange(0,x_quart[-1]+1,1) 
-# disc_monthly = np.interp(x_monthly,x_quart,disc_quart)
-# print(disc_quart, disc_monthly,x_quart,x_monthly)
-
 disc_quart = np.array(master_rates ['Discount']).astype(float)
-x_quart = np.array(master_rates.index)/4 #convert to monthly count 
-x_monthly = np.linspace(0,x_quart[-1],364)
-disc_monthly_f = interpolate.UnivariateSpline(x_quart,disc_quart)
+x_quart = np.array(master_rates['T_ACT_360'])
+x_monthly = np.arange(0,30 + (1/12),(1/12))
+disc_monthly_f = interpolate.interp1d(x_quart,disc_quart,kind = 'cubic')
 disc_monthly = disc_monthly_f(x_monthly)
 
 
 plt.plot(x_quart,disc_quart, 'b1', ms = 6, label = 'Quarterly Discount')
 plt.plot(x_monthly,disc_monthly ,'k', label = "Interpolated Monthly Discount")
-plt.xlabel('Years')
+plt.title('e) Interpolated Monthly Forward')
+plt.xlabel('Months after 9-01-2004')
 plt.ylabel('Discount')
 plt.legend(loc = 'upper right')
-plt.savefig('1e_discount.eps', format='eps')
 plt.show()
 
-#Next we need to find obtain f_m(0,t) usin our monthly diiscount rates
-f_m_func = disc_monthly_f.derivative()
-fm = np.array(f_m_func(x_monthly)).astype(float)
-#print(fm)
-#print(len(fm))
-#Next we need to take the partial derivative of f_m wrt time
-d_fm_func = f_m_func.derivative()
-d_fm = np.array(d_fm_func(x_monthly)).astype(float)
-#print(d_fm)
-#print(len(d_fm))
-# print(len(x_monthly))
+#Calculating Monthly Forwards and derivative using finite differencing
+fm = np.array([-(np.log(disc_monthly[i]) - np.log(disc_monthly[i-1]))/(1/12) for i in range(1,len(disc_monthly))]).astype(float)
+d_fm = np.array([(fm[i] - fm[i-1])/(1/12) for i in range(1,len(fm))]).astype(float)
 
-# pd_fm = np.diff(f_m)/(1/12)
-theta = d_fm + opti_kap*fm + ((opti_vol**2)/(2*opti_kap))* \
-                (1 - np.exp(-2*opti_kap*(x_monthly)))
-#print(theta)
+kap = opti_kap
+vol = opti_vol
+
+#Calculating Theta
+theta = d_fm + kap*fm[1:] + ((vol**2)/(2*kap))*(1 - np.exp(-2*kap*(x_monthly[2:])))
+# print(theta)
 # print(len(theta))
 
-plt.plot(x_monthly, theta, 'b')
+plt.plot(x_monthly[2:], theta, 'b')
+plt.title('Theta vs. Time')
 plt.xlabel('Years')
 plt.ylabel('Theta')
 plt.savefig('1e_theta.eps', format='eps')
