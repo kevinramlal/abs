@@ -135,7 +135,7 @@ class REMIC:
 		total_interest = self.classes_interest_cf.sum(1)
 		#self.classes_interest_cf['R'] = self.pool_summary['Interest Available to CMO'] - self.classes_interest_cf.sum(1)
 		self.total_cf = self.classes_principal + self.classes_interest_cf
-        self.total_cf['R'] = self.total_cf.iloc[:,0:-1].sum(axis=1)#####need to multiply by the simulated interest rate/24 here
+        	self.total_cf['R'] = self.total_cf.iloc[:,0:-1].sum(axis=1)#####need to multiply by the simulated interest rate/24 here
 
 		print(self.total_cf)
 
