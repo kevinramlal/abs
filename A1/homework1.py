@@ -16,8 +16,11 @@ import fixed_income
 import remic
 
 
-fi = fixed_income.FixedIncome()
+def latex_table(df, caption="", label="", index=False):
+    return "\\begin{table}[H]\n\centering\n"+df.to_latex(index=index)+"\caption{"+caption+"}\n\label{tab:"+label+"}\n\end{table}"
 
+
+fi = fixed_income.FixedIncome()
 
 #----Part 1: Importing Data and Calibrating Data-----#
 fwds = pd.read_csv('fwds_20040830.csv',header = None, names = ['Fwds'])
@@ -54,7 +57,8 @@ master_rates['Discount'] = 1/(1+(master_rates['Zero']/100)/2)**(2*master_rates['
 master_rates['Expiry Dates'] = np.array(dates_settle)
 master_rates['Expiry_day_count'] = np.array(dates_settle.apply(lambda x: (x - master_rates['Dates'][0]).days))
 
-print("a) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head(25), "\n")
+print("\na) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head(25), "\n")
+#print(latex_table(master_rates[['Dates','Zero','Discount']], caption="Discount Factors", label="p1a_discount", index=False))
 
 #-----------------------------------------------------------------
 #b) Calculate quarterly-compounded forward rates between each maturity
@@ -72,7 +76,7 @@ forwards = np.array((1/master_rates['Tau'])*\
 
 master_rates['Forward'] = forwards
 
-print("b) Forward Rates \n", master_rates[['Dates','Discount','Forward']].head(25), "\n")
+print("\nb) Forward Rates \n", master_rates[['Dates','Discount','Forward']].head(25), "\n")
 #-----------------------------------------------------------------
 #c) Calculating the at-the-money (ATM) strike rates for each of the 15 caps
 #-----------------------------------------------------------------
@@ -92,7 +96,7 @@ for m in cap_master_df['Maturity']:
 
 cap_master_df['ATM Strike'] = strike
 
-print("c) ATM Strike Rates vs Maturity \n", cap_master_df, "\n")
+print("\nc) ATM Strike Rates vs Maturity \n", cap_master_df, "\n")
 
 
 #-----------------------------------------------------------------
