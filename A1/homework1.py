@@ -274,7 +274,6 @@ disc_monthly = disc_monthly_f(x_monthly)
 
 plt.plot(x_quart,disc_quart, 'b1', ms = 6, label = 'Quarterly Discount')
 plt.plot(x_monthly,disc_monthly ,'k', label = "Interpolated Monthly Discount")
-#plt.title('e) Interpolated Monthly Forward')
 plt.xlabel('Years')
 plt.ylabel('Discount')
 plt.legend(loc = 'upper right')
@@ -284,23 +283,22 @@ plt.show()
 #Next we need to find obtain f_m(0,t) usin our monthly diiscount rates
 f_m_func = disc_monthly_f.derivative()
 fm = np.array(f_m_func(x_monthly)).astype(float)
-print(fm)
-print(len(fm))
+#print(fm)
+#print(len(fm))
 #Next we need to take the partial derivative of f_m wrt time
 d_fm_func = f_m_func.derivative()
 d_fm = np.array(d_fm_func(x_monthly)).astype(float)
-print(d_fm)
-print(len(d_fm))
+#print(d_fm)
+#print(len(d_fm))
 # print(len(x_monthly))
 
 # pd_fm = np.diff(f_m)/(1/12)
 theta = d_fm + opti_kap*fm + ((opti_vol**2)/(2*opti_kap))* \
                 (1 - np.exp(-2*opti_kap*(x_monthly)))
-print(theta)
+#print(theta)
 # print(len(theta))
 
 plt.plot(x_monthly, theta, 'b')
-#plt.title('e) Theta vs. Time')
 plt.xlabel('Years')
 plt.ylabel('Theta')
 plt.savefig('1e_theta.eps', format='eps')
@@ -309,38 +307,26 @@ plt.show()
 #-----------------------------------------------------------------------------
 #----Part 2: Pricing REMIC bonds-----#
 
-# General info
-# today = '8/15/2004'
-# first_payment_date = '9/15/2004'
-# pool_interest_rate = 0.05
+#General info
+today = '8/15/2004'
+first_payment_date = '9/15/2004'
+pool_interest_rate = 0.05
 
-# # General information of pools
-# pools_info = pd.read_csv('pools_general_info.csv', thousands=',')
+# General information of pools
+pools_info = pd.read_csv('pools_general_info.csv', thousands=',')
 
-# # General information of classes
-# classes_info = pd.read_csv('classes_general_info.csv', thousands=',')
+# General information of classes
+classes_info = pd.read_csv('classes_general_info.csv', thousands=',')
 
-# # Allocation sequence for principal
-# principal_sequential_pay = {'1': ['CA','CY'], '2': ['CG','VE','CM','GZ','TC','CZ']}
+# Allocation sequence for principal
+principal_sequential_pay = {'1': ['CA','CY'], '2': ['CG','VE','CM','GZ','TC','CZ']}
 
-# # Accruals accounts sequence
-# accruals_sequential_pay = {'GZ': ['VE','CM'], 'CZ': ['CG','VE','CM','GZ','TC']}
-
-
-# # REMIC cash flows
-# hw_remic = remic.REMIC(today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay)
-# hw_remic.calculate_pool_cf(1.5)
-# hw_remic.calculate_classes_cf()
+# Accruals accounts sequence
+accruals_sequential_pay = {'GZ': ['VE','CM'], 'CZ': ['CG','VE','CM','GZ','TC']}
 
 
+# REMIC cash flows
+hw_remic = remic.REMIC(today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay)
+hw_remic.calculate_pool_cf(1.5)
+hw_remic.calculate_classes_cf()
 
-# if __name__ == '__main__':
-#     #testing caplet
-#     maturity = cap_master_df['Maturity'][0]
-#     flat_vol = cap_master_df['Flat_Vol'][0]
-#     strike = cap_master_df['ATM Strike'][0]
-#     caplet_range = np.arange(1,maturity*4)
-#     caplet_pv = []
-#     for index in caplet_range:
-#         caplet_pv.append(caplet_black(master_rates,index,10000000,flat_vol,strike))
-#     # print(caplet_pv)
