@@ -133,9 +133,18 @@ class REMIC:
 
 		# Total cash flow
 		total_interest = self.classes_interest_cf.sum(1)
-		self.classes_interest_cf['R'] = self.pool_summary['Interest Available to CMO'] - self.classes_interest_cf.sum(1)
+		#self.classes_interest_cf['R'] = self.pool_summary['Interest Available to CMO'] - self.classes_interest_cf.sum(1)
 		self.total_cf = self.classes_principal + self.classes_interest_cf
+        self.total_cf['R'] = self.total_cf.iloc[:,0:-1].sum(axis=1)#####need to multiply by the simulated interest rate/24 here
 
 		print(self.total_cf)
-	
 
+    def calculate_eff_dura_or_convexity(self,interest_rate,if_duration=1):
+        delta_r = interest_rate/12
+        P = self.total_cf/interest_rate
+        P_plus = self.total_cf/(interest_rate+delta_r)
+        P_minus = self.total_cf/(interest_rate-delta_r)
+        if if_duration == 1:
+            return (P_minus-P_plus)/(P*2*delta_r)
+        else:
+            return (P_minus+P_plus-2*P)/(P*(delta_r**2))
