@@ -10,6 +10,8 @@ import datetime
 from scipy.stats import norm
 from scipy.optimize import minimize
 from scipy import interpolate
+from pandas.plotting import register_matplotlib_converters
+register_matplotlib_converters()
 
 # Custom made classes
 import fixed_income
@@ -83,7 +85,7 @@ forwards = np.array((1/master_rates['Tau'])*\
 master_rates['Forward'] = forwards
 
 print("\nb) Forward Rates \n", master_rates[['Dates','Discount','Forward']].head(25), "\n")
-print(latex_table(master_rates[['Dates','Zero','Discount', 'Forward']], caption="Discount Factors and forward rates", label="p1ab_discount_forward", index=False))
+##print(latex_table(master_rates[['Dates','Zero','Discount','Forward']], caption="Discount factors and forward rates", label="p1ab", index=False))
 
 plt.plot(master_rates['Dates'], master_rates['Forward'], 'b', ms = 6, label = "Forward Rate")
 plt.xlabel('Date')
@@ -111,7 +113,7 @@ for m in cap_master_df['Maturity']:
 cap_master_df['ATM Strike'] = strike
 
 print("\nc) ATM Strike Rates vs Maturity \n", cap_master_df, "\n")
-
+#print(latex_table(cap_master_df, caption="ATM strikes for given caps", label="p1c", index=False))
 
 #-----------------------------------------------------------------
 #d) Estimating k and sigma
@@ -272,10 +274,11 @@ disc_monthly = disc_monthly_f(x_monthly)
 
 plt.plot(x_quart,disc_quart, 'b1', ms = 6, label = 'Quarterly Discount')
 plt.plot(x_monthly,disc_monthly ,'k', label = "Interpolated Monthly Discount")
-plt.title('e) Interpolated Monthly Forward')
-plt.xlabel('Months after 9-01-2004')
+#plt.title('e) Interpolated Monthly Forward')
+plt.xlabel('Years')
 plt.ylabel('Discount')
 plt.legend(loc = 'upper right')
+plt.savefig('1e_discount.eps', format='eps')
 plt.show()
 
 #Next we need to find obtain f_m(0,t) usin our monthly diiscount rates
@@ -296,10 +299,11 @@ theta = d_fm + opti_kap*fm + ((opti_vol**2)/(2*opti_kap))* \
 print(theta)
 # print(len(theta))
 
-plt.plot(x_monthly, theta)
-plt.title('e) Theta vs. Time')
-plt.xlabel('Time (Years)')
+plt.plot(x_monthly, theta, 'b')
+#plt.title('e) Theta vs. Time')
+plt.xlabel('Years')
 plt.ylabel('Theta')
+plt.savefig('1e_theta.eps', format='eps')
 plt.show()
 
 #-----------------------------------------------------------------------------
@@ -325,7 +329,7 @@ plt.show()
 
 # # REMIC cash flows
 # hw_remic = remic.REMIC(today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay)
-# hw_remic.calculate_pool_cf(1)
+# hw_remic.calculate_pool_cf(1.5)
 # hw_remic.calculate_classes_cf()
 
 
