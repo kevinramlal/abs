@@ -60,6 +60,12 @@ master_rates['Expiry_day_count'] = np.array(dates_settle.apply(lambda x: (x - ma
 print("\na) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head(25), "\n")
 #print(latex_table(master_rates[['Dates','Zero','Discount']], caption="Discount Factors", label="p1a_discount", index=False))
 
+plt.plot(master_rates['Dates'], master_rates['Discount'], 'b', ms = 6)
+plt.xlabel('Date')
+plt.ylabel('Discount')
+plt.savefig('1a_discount.eps', format='eps')
+plt.show()
+
 #-----------------------------------------------------------------
 #b) Calculate quarterly-compounded forward rates between each maturity
 #-----------------------------------------------------------------
@@ -77,6 +83,14 @@ forwards = np.array((1/master_rates['Tau'])*\
 master_rates['Forward'] = forwards
 
 print("\nb) Forward Rates \n", master_rates[['Dates','Discount','Forward']].head(25), "\n")
+print(latex_table(master_rates[['Dates','Zero','Discount', 'Forward']], caption="Discount Factors and forward rates", label="p1ab_discount_forward", index=False))
+
+plt.plot(master_rates['Dates'], master_rates['Forward'], 'b', ms = 6, label = "Forward Rate")
+plt.xlabel('Date')
+plt.ylabel('Forward Rate')
+plt.savefig('1b_forward.eps', format='eps')
+plt.show()
+
 #-----------------------------------------------------------------
 #c) Calculating the at-the-money (ATM) strike rates for each of the 15 caps
 #-----------------------------------------------------------------
