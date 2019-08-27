@@ -1,6 +1,7 @@
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import minimize
 from scipy.optimize import fsolve
 pd.set_option('display.max_columns', 9)
 pd.set_option('display.max_rows', 238)
@@ -228,3 +229,25 @@ class REMIC:
 		#print(latex_table(self.dur_conv, caption = "Duration and Convexity", label = "2b_summary", index = True))
 
 		return (dur, conv)
+
+	def to_minimize_oas(self, params, sim_avg_rates, cfs,par):
+		oas = params[0]
+		res = 0
+		dts = np.array([ i*1/12 for i in range(len(cfs))])
+		dcfs = np.multiply(np.exp(-1*np.multiply(sim_avg_rates[:len(cfs)] + oas, dts)), cfs)
+		res = np.abs(par- np.sum(dcfs))
+		return res
+
+	def find_oas_classes(self, simulated_rates_avg):
+		oas_summary_np = summary_np = np.zeros((1,len(self.classes)))
+		for cl_ind in range(len(self.classes)):
+			oas = 0.0
+			cashflows = np.array(self.total_cf.iloc[:, cl_ind])
+			par = self.classes_balance.iloc[0, cl_ind]
+			optimum = minimize(self.to_minimize_oas, x0 = [oas] , args = (simulated_rates_avg, cashflows,par))
+			oas_summary_np[0, cl_ind] = optimum.x
+		oas_summary = pd.DataFrame(oas_summary_np, columns=self.classes)
+		oas_summary.index = ['OAS']
+		oas_summary = oas_summary.drop(columns=['R'])
+		print("\n2c) OAS results", oas_summary)
+

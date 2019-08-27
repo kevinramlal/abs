@@ -359,3 +359,8 @@ hw_remic.calculate_classes_cf()
 # REMIC pricing
 hw_remic.price_classes(simulated_Z)
 hw_remic.calculate_durations_and_convexities(0.0001, dt)
+
+
+#Calculating Ooption Adjusted Spreads
+simulated_rates_avg = (np.mean(simulated_rates[0], axis = 0) + np.mean(simulated_rates[1], axis = 0))/2
+hw_remic.find_oas_classes(simulated_rates_avg)
