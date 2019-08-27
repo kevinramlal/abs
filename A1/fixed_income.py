@@ -157,9 +157,4 @@ class FixedIncome:
 				Z[:, i] = self.hull_white_discount_factor(r[:, i], 0, T-t, theta, kappa, sigma)*Z[:, i-1]
 
 		return Z
-	
-	def calculate_eff_dura_or_convexity(self,r0,delta_r,P,P_plus,P_minus,if_duration=1):
-		if if_duration == 1:
-			return (P_minus-P_plus)/(P*2*delta_r)
-		else:
-			return (P_minus+P_plus-2*P)/(P*(delta_r**2))
+

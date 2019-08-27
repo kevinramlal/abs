@@ -1,8 +1,13 @@
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import fsolve
 pd.set_option('display.max_columns', 9)
 pd.set_option('display.max_rows', 238)
+
+
+def latex_table(df, caption="", label="", index=False):
+    return "\\begin{table}[H]\n\centering\n"+df.to_latex(index=index)+"\caption{"+caption+"}\n\label{tab:"+label+"}\n\end{table}"
 
 class REMIC:
 
@@ -77,7 +82,7 @@ class REMIC:
 		for group in self.principal_groups_proportions:
 			self.principal_groups_proportions[group] = float(self.principal_groups_proportions[group])/total_balance
 
-	def calculate_classes_cf(self,simulated_r):
+	def calculate_classes_cf(self):
 		#calculated cashflow of all bonds given the simulated interest rates
 		columns = self.classes
 		self.classes_balance = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
@@ -136,7 +141,7 @@ class REMIC:
 		total_interest = self.classes_interest_cf.sum(1)
 		self.total_cf = self.classes_principal + self.classes_interest_cf
 		coupon_differential = self.pool_summary['Total Principal'] + self.pool_summary['Interest Available to CMO'] - self.total_cf.iloc[:,0:-1].sum(axis=1)
-		self.total_cf['R'] = coupon_differential + self.total_cf.iloc[:,0:-1].sum(axis=1)
+		self.total_cf['R'] = coupon_differential #+ self.total_cf.iloc[:,0:-1].sum(axis=1) * interest
 
 
 
@@ -157,12 +162,6 @@ class REMIC:
 			Z_up_i = np.array(Z_up[i][:m])
 			Z_dn_i = np.array(Z_dn[i][:m])
 
-			################################################
-			#Z_up_i = 1 # FOR NOW, REMEMBER ME TO ERASE IT AFTER
-			#Z_dn_i = 1
-			# Just for testing price of undiscounted cash flows
-			################################################
-
 			for cl_ind in range(len(self.classes)):
 				cashflows = np.array(self.total_cf.iloc[:, cl_ind])
 				simulated_prices[i, cl_ind] = (np.sum(cashflows*Z_up_i) + np.sum(cashflows*Z_dn_i))/2
@@ -171,7 +170,61 @@ class REMIC:
 		summary_np[0, :] = simulated_prices.mean(0)
 		summary_np[1, :] = simulated_prices.std(0)/np.sqrt(n)
 
-		simulation_summary = pd.DataFrame(summary_np, columns=self.classes)
-		simulation_summary.index = ['Average price', 'Standard error']
-		print(simulation_summary)
-		return simulation_summary
+		self.simulation_summary = pd.DataFrame(summary_np.T, columns = ['Average price', 'Standard error'])
+		self.simulation_summary.index = self.classes
+
+		print("\n2a) Monte Carlo results", self.simulation_summary)
+		#print(latex_table(simulation_summary, caption = "Simulation summary", label = "2a_summary", index = True))
+
+
+	def calculate_price_given_yield(self, y, cl, dt):
+		'''
+			Continuous compounding.
+			cl is the class
+		'''
+		m = self.total_cf.shape[0]
+		Z = np.exp(-y*np.arange(1, m+1)*dt)
+		cashflows = np.array(self.total_cf.loc[:, cl])
+		price = np.sum(cashflows*Z)
+		return price
+
+	def calculate_durations_and_convexities(self, dr, dt):
+
+		def yield_auxiliary(y, *data):
+			cl, dt, price = data
+			price_y = self.calculate_price_given_yield(y, cl, dt)
+			return price_y - price
+
+		y = np.zeros(len(self.classes))
+		dur = np.zeros(len(self.classes))
+		conv = np.zeros(len(self.classes))
+		for cl_ind in range(len(self.classes)):
+
+			cl = self.classes[cl_ind]
+			P = self.simulation_summary.loc[cl, 'Average price']
+
+			# Yield
+			y[cl_ind] = fsolve(yield_auxiliary, 0.05, args = (cl, dt, P))
+
+			# Prices
+			P_up = self.calculate_price_given_yield(y[cl_ind] + dr, cl, dt)
+			P_dn = self.calculate_price_given_yield(y[cl_ind] - dr, cl, dt)
+
+			# Duration
+			dur[cl_ind] = (P_dn-P_up)/(P*2*dr)
+
+			# Convexity
+			conv[cl_ind] = (P_dn+P_up-2*P)/(P*dr**2)
+
+		dur_conv = np.zeros((3,len(self.classes)))
+		dur_conv[0, :] = y
+		dur_conv[1, :] = dur
+		dur_conv[2, :] = conv
+
+		self.dur_conv = pd.DataFrame(dur_conv.T, columns = ['Yields', 'Duration', 'Convexity'])
+		self.dur_conv.index = self.classes
+
+		print("\n2b) Duration and convexity results", self.simulation_summary)
+		#print(latex_table(self.dur_conv, caption = "Duration and Convexity", label = "2b_summary", index = True))
+
+		return (dur, conv)

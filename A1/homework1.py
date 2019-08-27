@@ -1,5 +1,4 @@
-# !/usr/local/bin/python
-"""///
+"""
 ABS Assignment 1
 Members: Kevin, Nico, Romain, Sherry, Sagnik
 
@@ -28,8 +27,6 @@ fi = fixed_income.FixedIncome()
 
 #----Part 1: Importing Data and Calibrating Data-----#
 fwds = pd.read_csv('fwds_20040830.csv',header = None, names = ['Fwds'])
-# zero = pd.read_csv('zero_rates_20040830.csv',header = None, names = ['Zero'])
-##Created Custom Zero rates file that adds in extra zero rate for 2034-12-01
 zero = pd.read_csv('zero_rates_custom.csv',header = None, names = ['Zero'])
 
 zr = np.array(zero['Zero'])
@@ -61,15 +58,15 @@ master_rates['Discount'] = 1/(1+(master_rates['Zero']/100)/2)**(2*master_rates['
 master_rates['Expiry Dates'] = np.array(dates_settle)
 master_rates['Expiry_day_count'] = np.array(dates_settle.apply(lambda x: (x - master_rates['Dates'][0]).days))
 
-print("\na) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head(25), "\n")
+print("\n1a) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head(25), "\n")
 #print(latex_table(master_rates[['Dates','Zero','Discount']], caption="Discount Factors", label="p1a_discount", index=False))
 
-#plt.plot(master_rates['Dates'], master_rates['Discount'], 'b', ms = 6)
-#plt.xlabel('Date')
-#plt.ylabel('Discount Rate')
+plt.plot(master_rates['Dates'], master_rates['Discount'], 'b', ms = 6)
+plt.xlabel('Date')
+plt.ylabel('Discount Rate')
 #plt.title('Discount (Quarterly)')
-#plt.savefig('1a_discount.eps', format='eps')
-#plt.show()
+plt.savefig('1a_discount.eps', format='eps')
+plt.show()
 
 #-----------------------------------------------------------------
 #b) Calculate quarterly-compounded forward rates between each maturity
@@ -87,15 +84,15 @@ forwards = np.array((1/master_rates['Tau'])*\
 
 master_rates['Forward'] = forwards
 
-print("\nb) Forward Rates \n", master_rates[['Dates','Discount','Forward']].head(25), "\n")
+print("\n1b) Forward Rates \n", master_rates[['Dates','Discount','Forward']].head(25), "\n")
 ##print(latex_table(master_rates[['Dates','Zero','Discount','Forward']], caption="Discount factors and forward rates", label="p1ab", index=False))
 
-#plt.plot(master_rates['Dates'], master_rates['Forward'], 'b', ms = 6, label = "Forward Rate")
-#plt.xlabel('Date')
-#plt.ylabel('Forward Rate')
+plt.plot(master_rates['Dates'], master_rates['Forward'], 'b', ms = 6, label = "Forward Rate")
+plt.xlabel('Date')
+plt.ylabel('Forward Rate')
 #plt.title('Forward Rate')
-#plt.savefig('1b_forward.eps', format='eps')
-#plt.show()
+plt.savefig('1b_forward.eps', format='eps')
+plt.show()
 
 #-----------------------------------------------------------------
 #c) Calculating the at-the-money (ATM) strike rates for each of the 15 caps
@@ -116,7 +113,7 @@ for m in cap_master_df['Maturity']:
 
 cap_master_df['ATM Strike'] = strike
 
-print("\nc) ATM Strike Rates vs Maturity \n", cap_master_df, "\n")
+print("\n1c) ATM Strike Rates vs Maturity \n", cap_master_df, "\n")
 #print(latex_table(cap_master_df, caption="ATM strikes for given caps", label="p1c", index=False))
 
 #-----------------------------------------------------------------
@@ -138,8 +135,6 @@ def d_1_2(flat_vol,forward_libor,t,strike,type = 1):
     elif type == 2:
         return d1 - flat_vol*np.sqrt(t)
 
-#index by np.arange(1,maturity,4)
-
 def caplet_black(master_rates,time_index,N, flat_vol, strike):
     """
     master_rates - DataFrame that contains dates, discount rates, and forward rates
@@ -156,8 +151,6 @@ def caplet_black(master_rates,time_index,N, flat_vol, strike):
     d2 = d_1_2(fv,fwd,t_i,strike,type =2)
     phi_d1 = norm.cdf(d1)
     phi_d2 = norm.cdf(d2)
-    # print(phi_d1,phi_d1,discount,tau,N)
-    # print((N*tau)*discount*(fwd*phi_d1 - strike*phi_d2))
     pv = ((N*tau)*discount*(fwd*phi_d1 - strike*phi_d2))
 
     return pv
@@ -235,7 +228,6 @@ opti_vol = 0.01456547
 #------------------------------------------------------
 
 
-#---------
 cap_price_list_black = []
 cap_price_list_hull = []
 for cap_index in range(len(cap_master_df)):
@@ -257,7 +249,7 @@ for cap_index in range(len(cap_master_df)):
     cap_price_list_hull.append(round(sum(caplet_hw_pv),3))
 cap_master_df['Cap Prices - Black'] = cap_price_list_black
 cap_master_df['Cap Prices - Hull'] = cap_price_list_hull
-print("d) Summary of Cap Pricing", cap_master_df, " \n Optimized Kappa: ", opti_kap, \
+print("\n1d) Summary of Cap Pricing", cap_master_df, " \n Optimized Kappa: ", opti_kap, \
     "\n", "Optimized Vol: ", opti_vol)
 
 #--------------------------------------------------------------
@@ -272,15 +264,14 @@ x_monthly = np.arange(0,30 + (1/12),(1/12))
 disc_monthly_f = interpolate.interp1d(x_quart, disc_quart, kind = 'cubic')
 disc_monthly = disc_monthly_f(x_monthly)
 
-
-#plt.plot(x_quart,disc_quart, 'b1', ms = 6, label = 'Quarterly Discount')
-#plt.plot(x_monthly,disc_monthly ,'k', label = "Interpolated Monthly Discount")
+plt.plot(x_quart,disc_quart, 'b1', ms = 6, label = 'Quarterly Discount')
+plt.plot(x_monthly,disc_monthly ,'k', label = "Interpolated Monthly Discount")
 #plt.title('e) Interpolated Monthly Forward')
-#plt.xlabel('Months after 9-01-2004')
-#plt.ylabel('Discount')
-#plt.legend(loc = 'upper right')
-#plt.savefig('1e_discount.eps', format='eps')
-#plt.show()
+plt.xlabel('Years')
+plt.ylabel('Discount')
+plt.legend(loc = 'upper right')
+plt.savefig('1e_discount.eps', format='eps')
+plt.show()
 
 #Calculating Monthly Forwards and derivative using finite differencing
 fm = np.array([-(np.log(disc_monthly[i]) - np.log(disc_monthly[i-1]))/(1/12) for i in range(1,len(disc_monthly))]).astype(float)
@@ -291,15 +282,13 @@ vol = opti_vol
 
 #Calculating Theta
 theta = d_fm + kap*fm[1:] + ((vol**2)/(2*kap))*(1 - np.exp(-2*kap*(x_monthly[2:])))
-# print(theta)
-# print(len(theta))
 
-#plt.plot(x_monthly[2:], theta, 'b')
+plt.plot(x_monthly[2:], theta, 'b')
 #plt.title('Theta vs. Time')
-#plt.xlabel('Years')
-#plt.ylabel('Theta')
-#plt.savefig('1e_theta.eps', format='eps')
-#plt.show()
+plt.xlabel('Years')
+plt.ylabel('Theta')
+plt.savefig('1e_theta.eps', format='eps')
+plt.show()
 
 
 #--------------------------------------------------------------
@@ -321,20 +310,18 @@ theta = d_fm + kap*fm[1:] + ((vol**2)/(2*kap))*(1 - np.exp(-2*kap*(x_monthly[2:]
 
 HW_fitted_vol = [57.69253532705768, 45.7494830622483, 38.70443281901373, 34.126571197767674, 30.84046463186082, 28.386109815307847, 26.544006407803735, 24.983724899829134, 23.741480325968226, 22.70368753715123, 20.921629763049662, 18.986272863673832, 17.056399816168746, 16.024946526447255, 15.334655293261521]
 
-
 initial_vol = list(cap_master_df['Flat_Vol'])
 
 plt.plot(np.arange(0,15,1),initial_vol, 'b1', ms = 6, label = 'Black 76 Implied volatility')
 plt.plot(np.arange(0,15,1),HW_fitted_vol ,'k', label = "1F-HW Calibrated Implied volatility")
-plt.title('f) Implied vs actual volatilities')
+#plt.title('f) Implied vs actual volatilities')
 plt.xlabel('Cap index')
 plt.ylabel('Black Implied Volatility (%)')
 plt.legend(loc = 'upper right')
+plt.savefig('1f_vol.eps', format='eps')
 plt.show()
 
 
-
-#-----------------------------------------------------------------------------
 #----Part 2: Pricing REMIC bonds-----#
 
 #General info
@@ -354,42 +341,21 @@ principal_sequential_pay = {'1': ['CA','CY'], '2': ['CG','VE','CM','GZ','TC','CZ
 # Accruals accounts sequence
 accruals_sequential_pay = {'GZ': ['VE','CM'], 'CZ': ['CG','VE','CM','GZ','TC']}
 
-
-# REMIC cash flows
-hw_remic = remic.REMIC(today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay)
-
-#float input of PSA
-hw_remic.calculate_pool_cf(1.5)
-
-
-# REMIC pricing
-n = 10000
+# Simulate interest rates
+n = 100
 dt = 1/12
 kappa = opti_kap
 sigma = opti_vol
 r0 = fi.hull_white_instantaneous_spot_rate(0, 3*dt, master_rates.loc[1, 'Discount'], theta, kappa, sigma)
 simulated_rates = fi.hull_white_simulate_rates_antithetic(n, r0, dt, theta, kappa, sigma)
-
-hw_remic.calculate_classes_cf(simulated_rates)
-
 simulated_Z = fi.hull_white_discount_factors_antithetic_GSI_version(simulated_rates, dt)
-P = hw_remic.price_classes(simulated_Z)['Average price']
-
-#Calculate duration and convexity
-delta_r = r0/100
-simulated_rates_minus = fi.hull_white_simulate_rates_antithetic(n,r0-delta_r,delta_r, dt, theta, kappa, sigma)
-hw_remic.calculate_classes_cf(simulated_rates_minus)
-simulated_Z_minus = fi.hull_white_discount_factors_antithetic_GSI_version(simulated_rates_minus, dt)
-P_minus = hw_remic.price_classes(simulated_Z_minus)['Average price']
-
-simulated_rates_plus = fi.hull_white_simulate_rates_antithetic(n,r0+delta_r,delta_r, dt, theta, kappa, sigma)
-hw_remic.calculate_classes_cf(simulated_rates_plus)
-simulated_Z_plus = fi.hull_white_discount_factors_antithetic_GSI_version(simulated_rates_plus, dt)
-P_plus = hw_remic.price_classes(simulated_Z_plus)['Average price']
 
 
-duration = fi.calculate_eff_dura_or_convexity(self,r0,P,P_plus,P_minus,if_duration=1)
-convexity = fi.calculate_eff_dura_or_convexity(self,r0,P,P_plus,P_minus,if_duration=0)
+# REMIC cash flows
+hw_remic = remic.REMIC(today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay)
+hw_remic.calculate_pool_cf(1.5)
+hw_remic.calculate_classes_cf()
 
-print('The duration of the bonds are', duration)
-print('The convexity of the bonds are', convexity)
+# REMIC pricing
+hw_remic.price_classes(simulated_Z)
+hw_remic.calculate_durations_and_convexities(0.0001, dt)
