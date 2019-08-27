@@ -53,7 +53,7 @@ dates_settle.columns = ['Settle_Date']
 #a) Caclulate Discount factors Z(D_i)
 #-----------------------------------------------------------------
 
-#Combine dates and zero rates 
+#Combine dates and zero rates
 start_date = dates[0]
 master_rates['Dates'] =np.array(dates) #We don't need 2004-09-01 for zeros
 master_rates['T_30_360'] = np.array(dates.apply(lambda x: fi.get_days_30I_360(start_date,x)))
@@ -76,12 +76,12 @@ print("\na) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head
 #-----------------------------------------------------------------
 
 #Get ACT/360 Convention
-master_rates['T_ACT_360'] = np.array(dates.apply(lambda x: fi.get_days_act_360(start_date,x))) 
+master_rates['T_ACT_360'] = np.array(dates.apply(lambda x: fi.get_days_act_360(start_date,x)))
 
 #T_i - T_i-1 where T_i is ACT/360 convention
 master_rates['Tau'] = master_rates['T_ACT_360'].diff(1)
 
-#Forward Rates 
+#Forward Rates
 forwards = np.array((1/master_rates['Tau'])*\
                         ((-master_rates['Discount'].diff(1))/master_rates['Discount']))
 
@@ -128,7 +128,7 @@ flat_vols = np.array(atm_cap['Black Imp Vol'])
 forward_libor = np.array(fwds['Fwds'])
 fwd_libor_temp = [None]
 forward_libor = np.append(fwd_libor_temp,forward_libor)
-master_rates['Forward_Libor'] = forward_libor #Has one extra entry at end that we cannot compute? 
+master_rates['Forward_Libor'] = forward_libor #Has one extra entry at end that we cannot compute?
 cap_master_df['Flat_Vol'] = flat_vols
 
 def d_1_2(flat_vol,forward_libor,t,strike,type = 1):
@@ -222,12 +222,12 @@ def to_minimize(params):
 #-------------------------------------------------
 # optimum = minimize(to_minimize, x0 = [0.20, 0.010])
 # print("Optimal Kappa: ", optimum.x[0],"\n", "Optimal Vol: ", optimum.x[1])
-# opti_kap = optimum.x[0] 
+# opti_kap = optimum.x[0]
 # opti_vol = optimum.x[1]
 #---------------------------------------------------
 
 
-##Version B: Hardcoded optimized kappa and vol for quicker run-time 
+##Version B: Hardcoded optimized kappa and vol for quicker run-time
 #--------------------------------------------------
 #Uncomment this to run code faster (don't need to run optimizer)
 opti_kap = 0.11469962
@@ -247,7 +247,7 @@ for cap_index in range(len(cap_master_df)):
     caplet_hw_pv = []
     for index in caplet_range:
         caplet_black_pv.append(caplet_black(master_rates,index,10000000,flat_vol,strike))
-        
+
         tau = master_rates['Tau'][index+1]
         strike_input = (1/(1+strike*tau))
         caplet_hw_pv.append(caplet_hull_white(master_rates,index,10000000,opti_vol, opti_kap,strike_input))
@@ -373,19 +373,19 @@ simulated_rates = fi.hull_white_simulate_rates_antithetic(n, r0, dt, theta, kapp
 hw_remic.calculate_classes_cf(simulated_rates)
 
 simulated_Z = fi.hull_white_discount_factors_antithetic_GSI_version(simulated_rates, dt)
-P = hw_remic.price_classes(simulated_Z)
+P = hw_remic.price_classes(simulated_Z)['Average price']
 
 #Calculate duration and convexity
 delta_r = r0/100
 simulated_rates_minus = fi.hull_white_simulate_rates_antithetic(n,r0-delta_r,delta_r, dt, theta, kappa, sigma)
 hw_remic.calculate_classes_cf(simulated_rates_minus)
 simulated_Z_minus = fi.hull_white_discount_factors_antithetic_GSI_version(simulated_rates_minus, dt)
-P_minus = hw_remic.price_classes(simulated_Z_minus)
+P_minus = hw_remic.price_classes(simulated_Z_minus)['Average price']
 
 simulated_rates_plus = fi.hull_white_simulate_rates_antithetic(n,r0+delta_r,delta_r, dt, theta, kappa, sigma)
 hw_remic.calculate_classes_cf(simulated_rates_plus)
 simulated_Z_plus = fi.hull_white_discount_factors_antithetic_GSI_version(simulated_rates_plus, dt)
-P_plus = hw_remic.price_classes(simulated_Z_plus)
+P_plus = hw_remic.price_classes(simulated_Z_plus)['Average price']
 
 
 duration = fi.calculate_eff_dura_or_convexity(self,r0,P,P_plus,P_minus,if_duration=1)

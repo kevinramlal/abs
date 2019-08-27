@@ -10,7 +10,7 @@ class REMIC:
 		# Direct inputs
 		self.today = today
 		self.first_payment_date = first_payment_date
-		self.pool_interest_rate = pool_interest_rate		
+		self.pool_interest_rate = pool_interest_rate
 		self.pools_info = pools_info
 		self.classes_info = classes_info
 		self.principal_sequential_pay = principal_sequential_pay
@@ -136,7 +136,7 @@ class REMIC:
 		total_interest = self.classes_interest_cf.sum(1)
 		self.total_cf = self.classes_principal + self.classes_interest_cf
 		coupon_differential = self.pool_summary['Total Principal'] + self.pool_summary['Interest Available to CMO'] - self.total_cf.iloc[:,0:-1].sum(axis=1)
-		self.total_cf['R'] = coupon_differential + self.total_cf.iloc[:,0:-1].sum(axis=1)*simulated_r
+		self.total_cf['R'] = coupon_differential + self.total_cf.iloc[:,0:-1].sum(axis=1)
 
 
 
@@ -147,6 +147,8 @@ class REMIC:
 
 		Z_up = simulated_Z[0]
 		Z_dn = simulated_Z[1]
+
+
 		n = Z_up.shape[0]
 		simulated_prices = np.zeros((n, len(self.classes)))
 		m = self.total_cf.shape[0]
