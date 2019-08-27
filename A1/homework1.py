@@ -319,7 +319,11 @@ accruals_sequential_pay = {'GZ': ['VE','CM'], 'CZ': ['CG','VE','CM','GZ','TC']}
 
 # REMIC cash flows
 hw_remic = remic.REMIC(today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay)
+
+#float input of PSA
 hw_remic.calculate_pool_cf(1.5)
+
+
 hw_remic.calculate_classes_cf()
 
 # REMIC pricing
