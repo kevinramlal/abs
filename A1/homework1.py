@@ -62,12 +62,12 @@ master_rates['Expiry_day_count'] = np.array(dates_settle.apply(lambda x: (x - ma
 print("\na) Discount Factors \n", master_rates[['Dates','Zero','Discount']].head(25), "\n")
 #print(latex_table(master_rates[['Dates','Zero','Discount']], caption="Discount Factors", label="p1a_discount", index=False))
 
-plt.plot(master_rates['Dates'], master_rates['Discount'], 'b', ms = 6)
-plt.xlabel('Date')
-plt.ylabel('Discount Rate')
-plt.title('Discount (Quarterly)')
-plt.savefig('1a_discount.eps', format='eps')
-plt.show()
+#plt.plot(master_rates['Dates'], master_rates['Discount'], 'b', ms = 6)
+#plt.xlabel('Date')
+#plt.ylabel('Discount Rate')
+#plt.title('Discount (Quarterly)')
+#plt.savefig('1a_discount.eps', format='eps')
+#plt.show()
 
 #-----------------------------------------------------------------
 #b) Calculate quarterly-compounded forward rates between each maturity
@@ -88,12 +88,12 @@ master_rates['Forward'] = forwards
 print("\nb) Forward Rates \n", master_rates[['Dates','Discount','Forward']].head(25), "\n")
 ##print(latex_table(master_rates[['Dates','Zero','Discount','Forward']], caption="Discount factors and forward rates", label="p1ab", index=False))
 
-plt.plot(master_rates['Dates'], master_rates['Forward'], 'b', ms = 6, label = "Forward Rate")
-plt.xlabel('Date')
-plt.ylabel('Forward Rate')
-plt.title('Forward Rate')
-plt.savefig('1b_forward.eps', format='eps')
-plt.show()
+#plt.plot(master_rates['Dates'], master_rates['Forward'], 'b', ms = 6, label = "Forward Rate")
+#plt.xlabel('Date')
+#plt.ylabel('Forward Rate')
+#plt.title('Forward Rate')
+#plt.savefig('1b_forward.eps', format='eps')
+#plt.show()
 
 #-----------------------------------------------------------------
 #c) Calculating the at-the-money (ATM) strike rates for each of the 15 caps
@@ -268,13 +268,14 @@ disc_monthly_f = interpolate.interp1d(x_quart,disc_quart,kind = 'cubic')
 disc_monthly = disc_monthly_f(x_monthly)
 
 
-plt.plot(x_quart,disc_quart, 'b1', ms = 6, label = 'Quarterly Discount')
-plt.plot(x_monthly,disc_monthly ,'k', label = "Interpolated Monthly Discount")
-plt.title('e) Interpolated Monthly Forward')
-plt.xlabel('Months after 9-01-2004')
-plt.ylabel('Discount')
-plt.legend(loc = 'upper right')
-plt.show()
+#plt.plot(x_quart,disc_quart, 'b1', ms = 6, label = 'Quarterly Discount')
+#plt.plot(x_monthly,disc_monthly ,'k', label = "Interpolated Monthly Discount")
+#plt.title('e) Interpolated Monthly Forward')
+#plt.xlabel('Months after 9-01-2004')
+#plt.ylabel('Discount')
+#plt.legend(loc = 'upper right')
+#plt.savefig('1e_discount.eps', format='eps')
+#plt.show()
 
 #Calculating Monthly Forwards and derivative using finite differencing
 fm = np.array([-(np.log(disc_monthly[i]) - np.log(disc_monthly[i-1]))/(1/12) for i in range(1,len(disc_monthly))]).astype(float)
@@ -288,12 +289,12 @@ theta = d_fm + kap*fm[1:] + ((vol**2)/(2*kap))*(1 - np.exp(-2*kap*(x_monthly[2:]
 # print(theta)
 # print(len(theta))
 
-plt.plot(x_monthly[2:], theta, 'b')
-plt.title('Theta vs. Time')
-plt.xlabel('Years')
-plt.ylabel('Theta')
-plt.savefig('1e_theta.eps', format='eps')
-plt.show()
+#plt.plot(x_monthly[2:], theta, 'b')
+#plt.title('Theta vs. Time')
+#plt.xlabel('Years')
+#plt.ylabel('Theta')
+#plt.savefig('1e_theta.eps', format='eps')
+#plt.show()
 
 #-----------------------------------------------------------------------------
 #----Part 2: Pricing REMIC bonds-----#
@@ -320,4 +321,11 @@ accruals_sequential_pay = {'GZ': ['VE','CM'], 'CZ': ['CG','VE','CM','GZ','TC']}
 hw_remic = remic.REMIC(today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay)
 hw_remic.calculate_pool_cf(1.5)
 hw_remic.calculate_classes_cf()
+
+# REMIC pricing
+n = 3
+kappa = opti_kap
+sigma = opti_vol
+r0 = fi.hull_white_instantaneous_spot_rate(0, 3/12, master_rates.loc[1, 'Discount'], theta, kappa, sigma)
+simulated_rates = fi.hull_white_simulate_rates(n, r0, theta, kappa, sigma)
 
