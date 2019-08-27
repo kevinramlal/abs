@@ -77,7 +77,8 @@ class REMIC:
 		for group in self.principal_groups_proportions:
 			self.principal_groups_proportions[group] = float(self.principal_groups_proportions[group])/total_balance
 
-	def calculate_classes_cf(self):
+	def calculate_classes_cf(self,simulated_r):
+		#calculated cashflow of all bonds given the simulated interest rates
 		columns = self.classes
 		self.classes_balance = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
 		self.classes_interest = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
@@ -135,18 +136,9 @@ class REMIC:
 		total_interest = self.classes_interest_cf.sum(1)
 		self.total_cf = self.classes_principal + self.classes_interest_cf
 		coupon_differential = self.pool_summary['Total Principal'] + self.pool_summary['Interest Available to CMO'] - self.total_cf.iloc[:,0:-1].sum(axis=1)
-		self.total_cf['R'] = coupon_differential
-		## Plus gained interested for the 15 day delay?
+		self.total_cf['R'] = coupon_differential + self.total_cf.iloc[:,0:-1].sum(axis=1)*simulated_r
 
-	def calculate_eff_dura_or_convexity(self,interest_rate,if_duration=1):
-		delta_r = interest_rate/12
-		P = self.total_cf/interest_rate
-		P_plus = self.total_cf/(interest_rate+delta_r)
-		P_minus = self.total_cf/(interest_rate-delta_r)
-		if if_duration == 1:
-			return (P_minus-P_plus)/(P*2*delta_r)
-		else:
-			return (P_minus+P_plus-2*P)/(P*(delta_r**2))
+
 
 	def price_classes(self, simulated_Z):
 		'''
