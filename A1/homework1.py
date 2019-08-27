@@ -306,19 +306,22 @@ theta = d_fm + kap*fm[1:] + ((vol**2)/(2*kap))*(1 - np.exp(-2*kap*(x_monthly[2:]
 #f)  Converting Hull White prices into Black implied volatilities
 #--------------------------------------------------------------
 
+#Uncomment to generate HW_fitted_vol element by element by manually changing i.
+#HW_fitted_vol = []
 
-HW_fitted_vol = []
+#def to_solve(vol): #we find the Black volatility such that the Black cap price is equal
+#    #to the Hull White cap price, and we repeat the process for each cap.
+#    i = 0 #we manually update it from 0 to 14
+#    res=np.abs(cap_black(master_rates, i, 10000000, cap_master_df, vol) - cap_price_list_hull[i])
+#    return res
 
-def to_solve(vol): #we find the Black volatility such that the Black cap price is equal
-    #to the Hull White cap price, and we repeat the process for each cap.
-    i = 0 #we manually update it from 0 to 14
-    res = []
-    res.append(np.abs(cap_black(master_rates, i, 10000000, cap_master_df, vol[i]) - cap_price_list_hull[i]))
-    return res
+#HW_fitted_vol.append(optimize.fsolve(to_solve, 1))
+#for i in range(len(HW_fitted_vol)):
+#    HW_fitted_vol[i] = HW_fitted_vol[i][0]
 
-HW_fitted_vol.append(optimize.fsolve(to_solve, 0))
-for i in range(len(HW_fitted_vol)):
-    HW_fitted_vol[i] = HW_fitted_vol[i][0]
+HW_fitted_vol = [57.69253532705768, 45.7494830622483, 38.70443281901373, 34.126571197767674, 30.84046463186082, 28.386109815307847, 26.544006407803735, 24.983724899829134, 23.741480325968226, 22.70368753715123, 20.921629763049662, 18.986272863673832, 17.056399816168746, 16.024946526447255, 15.334655293261521]
+
+
 initial_vol = list(cap_master_df['Flat_Vol'])
 
 plt.plot(np.arange(0,15,1),initial_vol, 'b1', ms = 6, label = 'Black 76 Implied volatility')
@@ -327,7 +330,6 @@ plt.title('f) Implied vs actual volatilities')
 plt.xlabel('Cap index')
 plt.ylabel('Black Implied Volatility (%)')
 plt.legend(loc = 'upper right')
-plt.savefig('q1F.png')
 plt.show()
 
 
