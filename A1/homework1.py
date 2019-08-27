@@ -327,6 +327,6 @@ n = 3
 kappa = opti_kap
 sigma = opti_vol
 r0 = fi.hull_white_instantaneous_spot_rate(0, 3/12, master_rates.loc[1, 'Discount'], theta, kappa, sigma)
-simulated_rates = fi.hull_white_simulate_rates(n, r0, theta, kappa, sigma)
-simulated_Z = fi.hull_white_discount_factors(simulated_rates, 1/12, theta, kappa, sigma)
+simulated_rates = fi.hull_white_simulate_rates(dt,n, r0, theta, kappa, sigma,anti=1)
+simulated_Z = fi.simulated_hull_white_discount_factors(simulated_rates, dt)
 
