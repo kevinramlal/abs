@@ -172,3 +172,4 @@ class REMIC:
 		simulation_summary = pd.DataFrame(summary_np, columns=self.classes)
 		simulation_summary.index = ['Average price', 'Standard error']
 		print(simulation_summary)
+		return simulation_summary
