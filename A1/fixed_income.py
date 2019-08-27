@@ -92,7 +92,6 @@ class FixedIncome:
 	def hull_white_simulate_rates_antithetic(self, n, r0, dt, theta, kappa, sigma):
 		'''
 			Simulates n paths of instantaneous rates using the Hull and White model.
-			dr(t) = (θ(t) − κr(t))dt + σdW(t)
 		'''
 		np.random.seed(0)
 		r_up = np.zeros((int(n/2), len(theta)))
