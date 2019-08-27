@@ -159,8 +159,7 @@ class FixedIncome:
 
 		return Z
 	
-	def calculate_eff_dura_or_convexity(self,r0,P,P_plus,P_minus,if_duration=1):
-		delta_r = r0/100
+	def calculate_eff_dura_or_convexity(self,r0,delta_r,P,P_plus,P_minus,if_duration=1):
 		if if_duration == 1:
 			return (P_minus-P_plus)/(P*2*delta_r)
 		else:
