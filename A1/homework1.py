@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import datetime
 from scipy.stats import norm
 from scipy.optimize import minimize
+from scipy import optimize
 from scipy import interpolate
 from pandas.plotting import register_matplotlib_converters
 register_matplotlib_converters()
@@ -176,10 +177,13 @@ def caplet_hull_white(master_rates,index,N,vol,kappa, strike_input):
     V = (N/strike_input)*(strike_input*disc_shift*norm.cdf(-d2) - discount*norm.cdf(-d1))
     return V
 
-def cap_black(master_rates, maturity_index, N, cap_master):
+def cap_black(master_rates, maturity_index, N, cap_master, vol=False):
     """Returns cap value based on Black formula."""
     maturity = cap_master['Maturity'][maturity_index]
-    flat_vol = cap_master['Flat_Vol'][maturity_index]
+    if vol == False:
+        flat_vol = cap_master['Flat_Vol'][maturity_index]
+    else:
+        flat_vol = vol
     strike = cap_master['ATM Strike'][maturity_index]
     caplet_range = np.arange(1,maturity*4)
     cap_pv = 0
@@ -295,6 +299,37 @@ theta = d_fm + kap*fm[1:] + ((vol**2)/(2*kap))*(1 - np.exp(-2*kap*(x_monthly[2:]
 #plt.ylabel('Theta')
 #plt.savefig('1e_theta.eps', format='eps')
 #plt.show()
+
+
+#--------------------------------------------------------------
+#f)  Converting Hull White prices into Black implied volatilities
+#--------------------------------------------------------------
+
+
+HW_fitted_vol = []
+
+def to_solve(vol): #we find the Black volatility such that the Black cap price is equal
+    #to the Hull White cap price, and we repeat the process for each cap.
+    i = 0 #we manually update it from 0 to 14
+    res = []
+    res.append(np.abs(cap_black(master_rates, i, 10000000, cap_master_df, vol[i]) - cap_price_list_hull[i]))
+    return res
+
+HW_fitted_vol.append(optimize.fsolve(to_solve, 0))
+for i in range(len(HW_fitted_vol)):
+    HW_fitted_vol[i] = HW_fitted_vol[i][0]
+initial_vol = list(cap_master_df['Flat_Vol'])
+
+plt.plot(np.arange(0,15,1),initial_vol, 'b1', ms = 6, label = 'Black 76 Implied volatility')
+plt.plot(np.arange(0,15,1),HW_fitted_vol ,'k', label = "1F-HW Calibrated Implied volatility")
+plt.title('f) Implied vs actual volatilities')
+plt.xlabel('Cap index')
+plt.ylabel('Black Implied Volatility (%)')
+plt.legend(loc = 'upper right')
+plt.savefig('q1F.png')
+plt.show()
+
+
 
 #-----------------------------------------------------------------------------
 #----Part 2: Pricing REMIC bonds-----#
