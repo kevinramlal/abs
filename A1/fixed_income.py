@@ -89,7 +89,7 @@ class FixedIncome:
 		r0 = -(np.log(Z)-A)/B
 		return r0
 
-	def hull_white_simulate_rates(self, dt, n, r0, theta, kappa, sigma,anti==0):
+	def hull_white_simulate_rates(self, dt, n, r0, theta, kappa, sigma,anti=0):
 		'''
 			Simulates n paths of instantaneous rates using the Hull and White model.
 			dr(t) = (θ(t) − κr(t))dt + σdW(t)
