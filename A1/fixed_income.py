@@ -96,22 +96,24 @@ class FixedIncome:
 		'''
 
 		np.random.seed(0)
-		r = np.zeros((n, len(theta)))
+		
 
 		for i in range(1, len(theta)):
 			if anti ==0:
 				#Regular N paths
+				r = np.zeros((n, len(theta)))
 				r[:, 0] = r0
 				w = np.random.normal(0, 1, n)
 				dr = (theta[i-1] - kappa*r[:, i-1])*dt + sigma*w*np.sqrt(dt)
 				r[:, i] = r[:, i-1] + dr
 			else:
 				#Antithetic (N/2) paths
-				r_up = np.zeros((n/2, len(theta)))
-				r_down = np.zeros((n/2, len(theta)))
+				r = np.zeros((int(n/2), len(theta)))
+				r_up = np.zeros((int(n/2), len(theta)))
+				r_down = np.zeros((int(n/2), len(theta)))
 				r_up[:, 0] = r0
 				r_down[:, 0] = r0
-				w = np.random.normal(0, sigma, n/2)
+				w = np.random.normal(0, sigma, int(n/2))
 				dr_up = (theta[i-1] - kappa*r[:, i-1])*dt + sigma*w*np.sqrt(dt)
 				dr_down = (theta[i-1] - kappa*r[:, i-1])*dt - sigma*w*np.sqrt(dt)
 				r_up[:, i] = r_up[:, i-1] + dr_up
