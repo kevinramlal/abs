@@ -18,7 +18,7 @@ class FixedIncome:
 
 	def get_days_act_360(self, start_date, end_date):
 	    return (end_date-start_date).days/360
-	    
+
 	def get_days_30I_360(self, start_date, end_date):
 	    Y1 = start_date.year
 	    Y2 = end_date.year
@@ -89,7 +89,7 @@ class FixedIncome:
 		r0 = -(np.log(Z)-A)/B
 		return r0
 
-	def hull_white_simulate_rates(self, n, r0, theta, kappa, sigma):
+	def hull_white_simulate_rates(self, dt, n, r0, theta, kappa, sigma,anti==0):
 		'''
 			Simulates n paths of instantaneous rates using the Hull and White model.
 			dr(t) = (θ(t) − κr(t))dt + σdW(t)
@@ -97,15 +97,35 @@ class FixedIncome:
 
 		np.random.seed(0)
 		r = np.zeros((n, len(theta)))
-		dt = 1/12
-		r[:, 0] = r0
 
 		for i in range(1, len(theta)):
-			w = np.random.normal(0, sigma, n)
-			dr = (theta[i-1] - kappa*r[:, i-1])*dt + sigma*w
-			r[:, i] = r[:, i-1] + dr
+			if anti ==0:
+				#Regular N paths
+				r[:, 0] = r0
+				w = np.random.normal(0, 1, n)
+				dr = (theta[i-1] - kappa*r[:, i-1])*dt + sigma*w*np.sqrt(dt)
+				r[:, i] = r[:, i-1] + dr
+			else:
+				#Antithetic (N/2) paths
+				r_up = np.zeros((n/2, len(theta)))
+				r_down = np.zeros((n/2, len(theta)))
+				r_up[:, 0] = r0
+				r_down[:, 0] = r0
+				w = np.random.normal(0, sigma, n/2)
+				dr_up = (theta[i-1] - kappa*r[:, i-1])*dt + sigma*w*np.sqrt(dt)
+				dr_down = (theta[i-1] - kappa*r[:, i-1])*dt - sigma*w*np.sqrt(dt)
+				r_up[:, i] = r_up[:, i-1] + dr_up
+				r_down[:, i] = r_down[:, i-1] + dr_down
+				r[:,i] = 0.5*(r_up[:, i] + r_down[:, i])
 
 		return r
+
+	def simulated_hull_white_discount_factors(self,r,dt):
+		#calculate discount factors with simulated interest rate with time step dt
+		Z = np.exp(-1*r*dt)
+		return Z
+
+
 
 	def hull_white_discount_factor(self, r, t, T, theta, kappa, sigma):
 		'''
@@ -138,4 +158,3 @@ class FixedIncome:
 			Z[:, i] = self.hull_white_discount_factor(r[:, i-1], 0, T-t, theta, kappa, sigma)*Z[:, i-1]
 
 		return Z
-
