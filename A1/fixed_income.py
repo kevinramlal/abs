@@ -65,17 +65,17 @@ class FixedIncome:
 		B = (1.0 - np.exp(-kappa * (T-t)))/kappa
 		return B
 
-	def hull_white_A_B(self, t, T, kappa, theta, sigma):
+	def hull_white_A_B(self, t, T, theta, kappa, sigma):
 		'''
 			Calculates A(t,T) in Hull and White
 		'''
 
 		B = self.hull_white_B(t, T, kappa)
-		def hull_white_integrand(tau, dt, kappa, theta):
+		def hull_white_integrand(tau, dt, theta, kappa):
 			return self.hull_white_B(tau, T, kappa)*self.hull_white_theta(tau, dt, theta)
 
 		dt = 1/12
-		I = quad(hull_white_integrand, t, T, args=(dt, kappa, theta))[0]
+		I = quad(hull_white_integrand, t, T, args=(dt, theta, kappa))[0]
 		A = -I + (sigma**2 / (2.0*kappa**2))*(T - t + (1.0 - np.exp(-2.0*kappa*(T - t)))/(2.0*kappa) - 2.0*B)
 		return (A, B)
 
@@ -83,7 +83,7 @@ class FixedIncome:
 		'''
 			Given a discount factor Z for the [t, T] period, it returns the implicit instantaneous spot rate
 		'''
-		AB =  self.hull_white_A_B(t, T, kappa, theta, sigma)
+		AB =  self.hull_white_A_B(t, T, theta, kappa, sigma)
 		A = AB[0]
 		B = AB[1]
 		r0 = -(np.log(Z)-A)/B
@@ -91,7 +91,7 @@ class FixedIncome:
 
 	def hull_white_simulate_rates(self, n, r0, theta, kappa, sigma):
 		'''
-			Simulates n paths of instantaneous rates using the Hull and White model
+			Simulates n paths of instantaneous rates using the Hull and White model.
 			dr(t) = (θ(t) − κr(t))dt + σdW(t)
 		'''
 
@@ -105,5 +105,39 @@ class FixedIncome:
 			dr = (theta[i-1] - kappa*r[:, i-1])*dt + sigma*w
 			r[:, i] = r[:, i-1] + dr
 
-		print(r)
+		return r
+
+	def hull_white_discount_factor(self, r, t, T, theta, kappa, sigma):
+		'''
+			Returns discount factor from t to T.
+			r is the instantaneous rate at t. It can be a numpy array.
+		'''
+		AB =  self.hull_white_A_B(t, T, theta, kappa, sigma)
+		A = AB[0]
+		B = AB[1]
+		Z = np.exp(A - B*r)
+		return Z
+
+
+	def hull_white_discount_factors(self, r, dt, theta, kappa, sigma):
+		'''
+			Returns discount factors following given interest rates path.
+			r has simulated instantaneous rates starting from 0 and over dt intervals.
+			r should be a numpy array with an interest rate path in each row.
+			The second column of the output conatins discount factor for next [0, dt] period.
+		'''
+		n = r.shape[0]
+		print(n)
+		m = r.shape[1]
+		Z = np.zeros(r.shape)
+		Z[:, 0] = 1
+
+		for i in range(1, r.shape[1]):
+			T = i*dt
+			print(i, T)
+			Z[:, i] = self.hull_white_discount_factor(r[:, i-1], 0, T, theta, kappa, sigma)
+
+		print(Z)
+
+
 

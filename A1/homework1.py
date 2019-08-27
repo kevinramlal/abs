@@ -256,7 +256,7 @@ print("d) Summary of Cap Pricing", cap_master_df, " \n Optimized Kappa: ", opti_
     "\n", "Optimized Vol: ", opti_vol)
 
 #--------------------------------------------------------------
-#e)  Estimate theta(t) from today t_0 to 30-years with timestep 1/2
+#e)  Estimate theta(t) from today t_0 to 30-years with timestep 1/12
 #--------------------------------------------------------------
 
 #First we need to interpolate the monthly discount factors from quarterly ones
@@ -264,7 +264,7 @@ print("d) Summary of Cap Pricing", cap_master_df, " \n Optimized Kappa: ", opti_
 disc_quart = np.array(master_rates ['Discount']).astype(float)
 x_quart = np.array(master_rates['T_ACT_360'])
 x_monthly = np.arange(0,30 + (1/12),(1/12))
-disc_monthly_f = interpolate.interp1d(x_quart,disc_quart,kind = 'cubic')
+disc_monthly_f = interpolate.interp1d(x_quart, disc_quart, kind = 'cubic')
 disc_monthly = disc_monthly_f(x_monthly)
 
 
@@ -328,4 +328,5 @@ kappa = opti_kap
 sigma = opti_vol
 r0 = fi.hull_white_instantaneous_spot_rate(0, 3/12, master_rates.loc[1, 'Discount'], theta, kappa, sigma)
 simulated_rates = fi.hull_white_simulate_rates(n, r0, theta, kappa, sigma)
+simulated_Z = fi.hull_white_discount_factors(simulated_rates, 1/12, theta, kappa, sigma)
 
