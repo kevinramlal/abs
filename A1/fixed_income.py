@@ -133,11 +133,9 @@ class FixedIncome:
 		Z[:, 0] = 1
 
 		for i in range(1, r.shape[1]):
+			t = (i-1)*dt
 			T = i*dt
-			print(i, T)
-			Z[:, i] = self.hull_white_discount_factor(r[:, i-1], 0, T, theta, kappa, sigma)
+			Z[:, i] = self.hull_white_discount_factor(r[:, i-1], 0, T-t, theta, kappa, sigma)*Z[:, i-1]
 
-		print(Z)
-
-
+		return Z
 
