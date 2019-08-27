@@ -133,11 +133,10 @@ class REMIC:
 
 		# Total cash flow
 		total_interest = self.classes_interest_cf.sum(1)
-		#self.classes_interest_cf['R'] = self.pool_summary['Interest Available to CMO'] - self.classes_interest_cf.sum(1)
 		self.total_cf = self.classes_principal + self.classes_interest_cf
-		self.total_cf['R'] = self.total_cf.iloc[:,0:-1].sum(axis=1) ##### need to multiply by the simulated interest rate/24 here
-
-		print(self.total_cf)
+		coupon_differential = self.pool_summary['Total Principal'] + self.pool_summary['Interest Available to CMO'] - self.total_cf.iloc[:,0:-1].sum(axis=1)
+		self.total_cf['R'] = coupon_differential
+		## Plus gained interested for the 15 day delay?
 
 	def calculate_eff_dura_or_convexity(self,interest_rate,if_duration=1):
 		delta_r = interest_rate/12
@@ -148,3 +147,36 @@ class REMIC:
 			return (P_minus-P_plus)/(P*2*delta_r)
 		else:
 			return (P_minus+P_plus-2*P)/(P*(delta_r**2))
+
+	def price_classes(self, simulated_Z):
+		'''
+			Calculates prices of all classes given the simulated discount factors.
+		'''
+
+		Z_up = simulated_Z[0]
+		Z_dn = simulated_Z[1]
+		n = Z_up.shape[0]
+		simulated_prices = np.zeros((n, len(self.classes)))
+		m = self.total_cf.shape[0]
+
+		for i in range(n):
+			Z_up_i = np.array(Z_up[i][:m])
+			Z_dn_i = np.array(Z_dn[i][:m])
+
+			################################################
+			#Z_up_i = 1 # FOR NOW, REMEMBER ME TO ERASE IT AFTER
+			#Z_dn_i = 1
+			# Just for testing price of undiscounted cash flows
+			################################################
+
+			for cl_ind in range(len(self.classes)):
+				cashflows = np.array(self.total_cf.iloc[:, cl_ind])
+				simulated_prices[i, cl_ind] = (np.sum(cashflows*Z_up_i) + np.sum(cashflows*Z_dn_i))/2
+
+		summary_np = np.zeros((2,len(self.classes)))
+		summary_np[0, :] = simulated_prices.mean(0)
+		summary_np[1, :] = simulated_prices.std(0)/np.sqrt(n)
+
+		simulation_summary = pd.DataFrame(summary_np, columns=self.classes)
+		simulation_summary.index = ['Average price', 'Standard error']
+		print(simulation_summary)

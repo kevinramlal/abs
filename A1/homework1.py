@@ -322,15 +322,14 @@ hw_remic = remic.REMIC(today, first_payment_date, pool_interest_rate, pools_info
 
 #float input of PSA
 hw_remic.calculate_pool_cf(1.5)
-
-
 hw_remic.calculate_classes_cf()
 
 # REMIC pricing
-n = 3
+n = 10000
+dt = 1/12
 kappa = opti_kap
 sigma = opti_vol
-r0 = fi.hull_white_instantaneous_spot_rate(0, 3/12, master_rates.loc[1, 'Discount'], theta, kappa, sigma)
-simulated_rates = fi.hull_white_simulate_rates(dt,n, r0, theta, kappa, sigma,anti=1)
-simulated_Z = fi.simulated_hull_white_discount_factors(simulated_rates, dt)
-
+r0 = fi.hull_white_instantaneous_spot_rate(0, 3*dt, master_rates.loc[1, 'Discount'], theta, kappa, sigma)
+simulated_rates = fi.hull_white_simulate_rates_antithetic(n, r0, dt, theta, kappa, sigma)
+simulated_Z = fi.hull_white_discount_factors_antithetic_GSI_version(simulated_rates, dt)
+hw_remic.price_classes(simulated_Z)

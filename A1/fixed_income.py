@@ -89,45 +89,42 @@ class FixedIncome:
 		r0 = -(np.log(Z)-A)/B
 		return r0
 
-	def hull_white_simulate_rates(self, dt, n, r0, theta, kappa, sigma,anti=0):
+	def hull_white_simulate_rates_antithetic(self, n, r0, dt, theta, kappa, sigma):
 		'''
 			Simulates n paths of instantaneous rates using the Hull and White model.
 			dr(t) = (θ(t) − κr(t))dt + σdW(t)
 		'''
-
 		np.random.seed(0)
-		
+		r_up = np.zeros((int(n/2), len(theta)))
+		r_dn = np.zeros((int(n/2), len(theta)))
 
 		for i in range(1, len(theta)):
-			if anti ==0:
-				#Regular N paths
-				r = np.zeros((n, len(theta)))
-				r[:, 0] = r0
-				w = np.random.normal(0, 1, n)
-				dr = (theta[i-1] - kappa*r[:, i-1])*dt + sigma*w*np.sqrt(dt)
-				r[:, i] = r[:, i-1] + dr
-			else:
-				#Antithetic (N/2) paths
-				r = np.zeros((int(n/2), len(theta)))
-				r_up = np.zeros((int(n/2), len(theta)))
-				r_down = np.zeros((int(n/2), len(theta)))
-				r_up[:, 0] = r0
-				r_down[:, 0] = r0
-				w = np.random.normal(0, sigma, int(n/2))
-				dr_up = (theta[i-1] - kappa*r[:, i-1])*dt + sigma*w*np.sqrt(dt)
-				dr_down = (theta[i-1] - kappa*r[:, i-1])*dt - sigma*w*np.sqrt(dt)
-				r_up[:, i] = r_up[:, i-1] + dr_up
-				r_down[:, i] = r_down[:, i-1] + dr_down
-				r[:,i] = 0.5*(r_up[:, i] + r_down[:, i])
+			r_up[:, 0] = r0
+			r_dn[:, 0] = r0
+			w = np.random.normal(0, sigma, int(n/2))
+			dr_up = (theta[i-1] - kappa*r_up[:, i-1])*dt + sigma*w*np.sqrt(dt)
+			dr_dn = (theta[i-1] - kappa*r_dn[:, i-1])*dt - sigma*w*np.sqrt(dt)
+			r_up[:, i] = r_up[:, i-1] + dr_up
+			r_dn[:, i] = r_dn[:, i-1] + dr_dn
 
-		return r
+		return (r_up, r_dn)
 
-	def simulated_hull_white_discount_factors(self,r,dt):
-		#calculate discount factors with simulated interest rate with time step dt
-		Z = np.exp(-1*r*dt)
-		return Z
+	def hull_white_discount_factors_antithetic_GSI_version(self, r, dt):
+		'''
+			Calculate discount factors using GSI simplification.
+			The way learned in Fixed Income course is shown in hull_white_discount_factors
+		'''
 
+		r_up = r[0]
+		r_dn = r[1]
 
+		Z_up = np.exp(-1*r_up*dt)
+		Z_dn = np.exp(-1*r_dn*dt)
+		for i in range(1, Z_up.shape[1]):
+			Z_up[:, i] = Z_up[:, i-1]*Z_up[:, i]
+			Z_dn[:, i] = Z_dn[:, i-1]*Z_dn[:, i]
+
+		return (Z_up, Z_dn)
 
 	def hull_white_discount_factor(self, r, t, T, theta, kappa, sigma):
 		'''
@@ -140,23 +137,24 @@ class FixedIncome:
 		Z = np.exp(A - B*r)
 		return Z
 
-
 	def hull_white_discount_factors(self, r, dt, theta, kappa, sigma):
 		'''
 			Returns discount factors following given interest rates path.
 			r has simulated instantaneous rates starting from 0 and over dt intervals.
 			r should be a numpy array with an interest rate path in each row.
-			The second column of the output conatins discount factor for next [0, dt] period.
+			The first column of the output conatins discount factor for next [0, dt] period.
 		'''
 		n = r.shape[0]
 		print(n)
 		m = r.shape[1]
 		Z = np.zeros(r.shape)
-		Z[:, 0] = 1
 
-		for i in range(1, r.shape[1]):
+		for i in range(0, r.shape[1]):
 			t = (i-1)*dt
 			T = i*dt
-			Z[:, i] = self.hull_white_discount_factor(r[:, i-1], 0, T-t, theta, kappa, sigma)*Z[:, i-1]
+			if i == 0:
+				Z[:, i] = self.hull_white_discount_factor(r[:, i], 0, T-t, theta, kappa, sigma)
+			else:
+				Z[:, i] = self.hull_white_discount_factor(r[:, i], 0, T-t, theta, kappa, sigma)*Z[:, i-1]
 
 		return Z
