@@ -1,6 +1,6 @@
 """///
 ABS Assignment 1
-Members: Kevin, Nico, Romain, Sherry, Trilok
+Members: Kevin, Nico, Romain, Sherry, Sagnik
 
 """
 import pandas as pd
@@ -357,7 +357,7 @@ hw_remic = remic.REMIC(today, first_payment_date, pool_interest_rate, pools_info
 
 #float input of PSA
 hw_remic.calculate_pool_cf(1.5)
-hw_remic.calculate_classes_cf()
+
 
 # REMIC pricing
 n = 10000
@@ -366,5 +366,27 @@ kappa = opti_kap
 sigma = opti_vol
 r0 = fi.hull_white_instantaneous_spot_rate(0, 3*dt, master_rates.loc[1, 'Discount'], theta, kappa, sigma)
 simulated_rates = fi.hull_white_simulate_rates_antithetic(n, r0, dt, theta, kappa, sigma)
+
+hw_remic.calculate_classes_cf(simulated_rates)
+
 simulated_Z = fi.hull_white_discount_factors_antithetic_GSI_version(simulated_rates, dt)
-hw_remic.price_classes(simulated_Z)
+P = hw_remic.price_classes(simulated_Z)
+
+#Calculate duration and convexity
+delta_r = r0/100
+simulated_rates_minus = fi.hull_white_simulate_rates_antithetic(n,r0-delta_r,delta_r, dt, theta, kappa, sigma)
+hw_remic.calculate_classes_cf(simulated_rates_minus)
+simulated_Z_minus = fi.hull_white_discount_factors_antithetic_GSI_version(simulated_rates_minus, dt)
+P_minus = hw_remic.price_classes(simulated_Z_minus)
+
+simulated_rates_plus = fi.hull_white_simulate_rates_antithetic(n,r0+delta_r,delta_r, dt, theta, kappa, sigma)
+hw_remic.calculate_classes_cf(simulated_rates_plus)
+simulated_Z_plus = fi.hull_white_discount_factors_antithetic_GSI_version(simulated_rates_plus, dt)
+P_plus = hw_remic.price_classes(simulated_Z_plus)
+
+
+duration = fi.calculate_eff_dura_or_convexity(self,r0,P,P_plus,P_minus,if_duration=1)
+convexity = fi.calculate_eff_dura_or_convexity(self,r0,P,P_plus,P_minus,if_duration=0)
+
+print('The duration of the bonds are', duration)
+print('The convexity of the bonds are', convexity)
