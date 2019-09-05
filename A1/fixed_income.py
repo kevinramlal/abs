@@ -5,7 +5,8 @@ from scipy.integrate import quad
 
 class FixedIncome:
 	'''
-		This class contains all functions and algorithms needed to estimate fixed income models
+		Contains functions and algorithms needed to estimate fixed income models.
+		Ideally homework1 code should be adequately included here.
 	'''
 
 	def __init__(self):
