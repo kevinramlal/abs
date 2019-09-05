@@ -11,8 +11,11 @@ def latex_table(df, caption="", label="", index=False):
     return "\\begin{table}[H]\n\centering\n"+df.to_latex(index=index)+"\caption{"+caption+"}\n\label{tab:"+label+"}\n\end{table}"
 
 class REMIC:
+	'''
+		Values REMIC bonds and calculates relevant metrics.
+	'''
 
-	def __init__(self, today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay):
+	def __init__(self, today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, show_prints=False, show_plots=False):
 		# Direct inputs
 		self.today = today
 		self.first_payment_date = first_payment_date
@@ -21,6 +24,8 @@ class REMIC:
 		self.classes_info = classes_info
 		self.principal_sequential_pay = principal_sequential_pay
 		self.accruals_sequential_pay = accruals_sequential_pay
+		self.show_prints = show_prints
+		self.show_plots = show_plots
 
 		# Processed attributes
 		self.maturity = np.max(self.pools_info['Term'])
@@ -174,8 +179,9 @@ class REMIC:
 		self.simulation_summary = pd.DataFrame(summary_np.T, columns = ['Average price', 'Standard error'])
 		self.simulation_summary.index = self.classes
 
-		print("\n2a) Monte Carlo results", self.simulation_summary)
-		#print(latex_table(simulation_summary, caption = "Simulation summary", label = "2a_summary", index = True))
+		if self.show_prints:
+			print("\n2a) Monte Carlo results", self.simulation_summary)
+			#print(latex_table(simulation_summary, caption = "Simulation summary", label = "2a_summary", index = True))
 
 
 	def calculate_price_given_yield(self, y, cl, dt):
@@ -225,8 +231,9 @@ class REMIC:
 		self.dur_conv = pd.DataFrame(dur_conv.T, columns = ['Yields', 'Duration', 'Convexity'])
 		self.dur_conv.index = self.classes
 
-		print("\n2b) Duration and convexity results", self.simulation_summary)
-		#print(latex_table(self.dur_conv, caption = "Duration and Convexity", label = "2b_summary", index = True))
+		if self.show_prints:
+			print("\n2b) Duration and convexity results", self.simulation_summary)
+			#print(latex_table(self.dur_conv, caption = "Duration and Convexity", label = "2b_summary", index = True))
 
 		return (dur, conv)
 
@@ -249,5 +256,7 @@ class REMIC:
 		oas_summary = pd.DataFrame(oas_summary_np, columns=self.classes)
 		oas_summary.index = ['OAS']
 		oas_summary = oas_summary.drop(columns=['R'])
-		print("\n2c) OAS results", oas_summary)
+
+		if self.show_prints:
+			print("\n2c) OAS results", oas_summary)
 
