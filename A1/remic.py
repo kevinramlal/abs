@@ -46,7 +46,11 @@ class REMIC:
 	def coupon_payment(self, r_month, months_remaining, balance):
 		return r_month*balance/(1-1/(1+r_month)**months_remaining)
 
-	def calculate_pool_cf(self, PSA):
+	def calculate_pool_cf(self, PSA, hazard_flag = False, hazard_input = []): #KEVIN EDITS
+	'''
+	if harzard_flag = True, then the calculated hazard array must be inputted
+	when flag is true, this will replace the SMM method
+	'''
 		columns = ['Total Principal', 'Total Interest', 'Balance', 'Interest Available to CMO']
 		self.pool_summary = pd.DataFrame(np.zeros((self.maturity+1, 4)), columns = columns)
 		pools = []
@@ -65,9 +69,12 @@ class REMIC:
 				pool.loc[month, 'Interest'] = prev_balance*r_month
 				pool.loc[month, 'Principal'] = prev_balance if pool.loc[month, 'PMT'] - pool.loc[month, 'Interest'] > prev_balance else pool.loc[month, 'PMT'] - pool.loc[month, 'Interest']
 				pool.loc[month, 'CPR'] = 0.06*PSA*min(1, (month + age)/30)
-				pool.loc[month, 'SMM'] = 1 - (1 - pool.loc[month, 'CPR'])**(1/12)
 				pool.loc[month, 'Prepay CF'] = pool.loc[month, 'SMM']*(prev_balance - pool.loc[month, 'Principal'])
 				pool.loc[month, 'Balance'] = prev_balance - pool.loc[month, 'Principal'] - pool.loc[month, 'Prepay CF']
+				if hazard_flag == False:
+					pool.loc[month, 'SMM'] = 1 - (1 - pool.loc[month, 'CPR'])**(1/12)
+			if harzard_flag:
+				pool['SMM'] = hazard_input #Use the calculated hazard rates 
 			pools.append(pool)
 
 		for pool in pools:
