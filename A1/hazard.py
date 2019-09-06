@@ -6,7 +6,7 @@ from scipy.optimize import minimize
 from scipy.optimize import fmin_tnc
 from utilities import *
 #import numdifftools as nd
-
+pd.set_option('display.max_columns', 15)
 
 class Hazard:
 	'''
@@ -26,11 +26,18 @@ class Hazard:
 		self.beg_col = beg_col
 		self.end_max = end_max
 		self.cov_cols = cov_cols
+		self.show_prints = show_prints
+		self.show_plots = show_plots
 
+<<<<<<< HEAD
+		self.t_all = self.data[self.end_col]
+		self.t_obs = self.data.loc[self.data[self.prepay_col]==1, self.end_col]
+=======
 		self.t_all = self.data[self.end_col]/12
 		self.t_b = self.data[self.beg_col]/12
 		self.event = self.data[self.prepay_col]
 		self.t_obs = self.data.loc[self.data[self.prepay_col]==1, self.end_col]/12
+>>>>>>> origin/master
 		self.covars_all = np.array(self.data[self.cov_cols])
 		self.covars_obs = np.array(self.data.loc[self.data[self.prepay_col]==1, self.cov_cols])
 
@@ -129,19 +136,27 @@ class Hazard:
 		#print('\n' + laself.t_allx_table(param_df, caption="Non-time varying hazard model estimaself.t_alls.", label="a_estimaself.t_alls", index=True))
 
 
-	def baseline_hazard(self):
+	def baseline_hazard(self, t):
 		p = self.theta[0] # p in notation
 		g = self.theta[1] # gamma in notation
 
-		t = np.arange(0,self.end_max+1)/12
-		b_lambda = g*p*(g*t)**(p-1)/(1+(g*t)**p)
+		base_hz = g*p*(g*t)**(p-1)/(1+(g*t)**p)
 
-		plt.plot(t, b_lambda)
-		plt.xlabel('Years')
-		plt.ylabel('Baseline hazard')
-		plt.show()
-		return b_lambda
+		if self.show_plots:
+			plt.plot(t, base_hz)
+			plt.xlabel('Years')
+			plt.ylabel('Baseline hazard')
+			plt.show()
 
+<<<<<<< HEAD
+		return base_hz
+
+	def calculate_prepayment(self, t, covars):
+		base_hz = self.baseline_hazard(t)
+		b = self.theta[2:]
+		prepayment = base_hz*np.exp(np.matmul(covars, b))
+		return prepayment
+=======
 	# ------------------------------- #
 	#  Time varying hazard model  #
 	# ------------------------------- #
@@ -247,3 +262,4 @@ class Hazard:
 			cnt = 0
 			result_min = minimize(log_log_like,phist,args = (self.t_b,self.t_all,self.event,self.covars_all),jac=log_log_grad, tol=1e-7, bounds=bounds)
 			self.theta = result.x
+>>>>>>> origin/master

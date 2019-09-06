@@ -107,16 +107,20 @@ class FixedIncome:
 			r_up[:, i] = r_up[:, i-1] + dr_up
 			r_dn[:, i] = r_dn[:, i-1] + dr_dn
 
-		return (r_up, r_dn)
+		# The first half will be the up paths and the second half will be the down counterpart.
+		# Calculations later are easier if we concatenate
+		r_A = np.concatenate((r_up, r_dn))
 
-	def hull_white_discount_factors_antithetic_GSI_version(self, r, dt):
-		'''
-			Calculate discount factors using GSI simplification.
-			The way learned in Fixed Income course is shown in hull_white_discount_factors
-		'''
+		return r_A
 
-		r_up = r[0]
-		r_dn = r[1]
+	def hull_white_discount_factors_antithetic_path(self, r_A, dt):
+		'''
+			Calculate discount factors from interest rate path.
+			Makes slight simplification of assuming constant rate for every dt.
+		'''
+		n = r_A.shape[0]
+		r_up = r_A[:n]
+		r_dn = r_A[(n+1):]
 
 		Z_up = np.exp(-1*r_up*dt)
 		Z_dn = np.exp(-1*r_dn*dt)
@@ -124,9 +128,11 @@ class FixedIncome:
 			Z_up[:, i] = Z_up[:, i-1]*Z_up[:, i]
 			Z_dn[:, i] = Z_dn[:, i-1]*Z_dn[:, i]
 
-		return (Z_up, Z_dn)
+		Z_A = np.concatenate((Z_up, Z_dn))
 
-	def hull_white_discount_factor(self, r, t, T, theta, kappa, sigma):
+		return Z_A
+
+	def hull_white_discount_factor(self, r_A, t, T, theta, kappa, sigma):
 		'''
 			Returns discount factor from t to T.
 			r is the instantaneous rate at t. It can be a numpy array.
@@ -134,8 +140,8 @@ class FixedIncome:
 		AB =  self.hull_white_A_B(t, T, theta, kappa, sigma)
 		A = AB[0]
 		B = AB[1]
-		Z = np.exp(A - B*r)
-		return Z
+		Z_A = np.exp(A - B*r_A)
+		return Z_A
 
 	def hull_white_discount_factors(self, r, dt, theta, kappa, sigma):
 		'''

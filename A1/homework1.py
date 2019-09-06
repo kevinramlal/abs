@@ -334,11 +334,27 @@ class Homework1:
         #plt.show()
 
 
-
     def simulate_interest_rates(self, n):
+        # The subscript _A denotes that is a tuple containing antithetic paths in each of the two positions
         dt = 1/12
         r0 = self.fi.hull_white_instantaneous_spot_rate(0, 3*dt, self.master_rates.loc[1, 'Discount'], self.theta, self.kappa, self.sigma)
-        simulated_rates = self.fi.hull_white_simulate_rates_antithetic(n, r0, dt, self.theta, self.kappa, self.sigma)
-        simulated_Z = self.fi.hull_white_discount_factors_antithetic_GSI_version(simulated_rates, dt)
-        return (simulated_rates, simulated_Z)
+        simulated_rates_A = self.fi.hull_white_simulate_rates_antithetic(n, r0, dt, self.theta, self.kappa, self.sigma)
+        simulated_Z_A = self.fi.hull_white_discount_factors_antithetic_path(simulated_rates_A, dt)
+        return (simulated_rates_A, simulated_Z_A)
+
+    def calculate_T_year_rate_APR(self, r_A, lag, horizon):
+        '''
+            Intended to return the 10-year Treasury rate at the end of every pool with a lag of 3 months (horizon is 10).
+            Returns a list where in each position (corresponding to each ending month in end) has a tupple with the (antithetic) APR
+            r_A contains antithetic simulations of the instantaneous spot rate.
+            lag is the lag in months.
+            T is the horizon in years of the period to get the APR.
+        '''
+        n = r_A.shape[0]
+        Z_A = self.fi.hull_white_discount_factor(r_A, 0, horizon, self.theta, self.kappa, self.sigma)
+        r_APR = 12*((1/Z_A)**(1/(12*horizon)) - 1)
+        r_APR[:, lag:] = r_APR[:, :-lag]
+        # We have to replace the first three values of each path with the real values. Setting to zero for now.
+        r_APR[:, :lag] = 0
+        return r_APR
 

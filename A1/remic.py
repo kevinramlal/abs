@@ -3,32 +3,32 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from scipy.optimize import fsolve
-pd.set_option('display.max_columns', 9)
-pd.set_option('display.max_rows', 238)
+from datetime import datetime
+from utilities import *
 
-
-def latex_table(df, caption="", label="", index=False):
-    return "\\begin{table}[H]\n\centering\n"+df.to_latex(index=index)+"\caption{"+caption+"}\n\label{tab:"+label+"}\n\end{table}"
 
 class REMIC:
 	'''
 		Values REMIC bonds and calculates relevant metrics.
 	'''
 
-	def __init__(self, today, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, show_prints=False, show_plots=False):
+	def __init__(self, start_date, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates, simulated_Z, show_prints=False, show_plots=False):
 		# Direct inputs
-		self.today = today
-		self.first_payment_date = first_payment_date
+		self.start_date = datetime.strptime(start_date, "%m/%d/%Y")
+		self.first_payment_date = datetime.strptime(first_payment_date, "%m/%d/%Y")
 		self.pool_interest_rate = pool_interest_rate
 		self.pools_info = pools_info
 		self.classes_info = classes_info
 		self.principal_sequential_pay = principal_sequential_pay
 		self.accruals_sequential_pay = accruals_sequential_pay
+		self.simulated_rates = simulated_rates
+		self.simulated_Z = simulated_Z
 		self.show_prints = show_prints
 		self.show_plots = show_plots
 
 		# Processed attributes
 		self.maturity = np.max(self.pools_info['Term'])
+		self.n_pools = self.pools_info.shape[0]
 		self.classes = list(self.classes_info['REMIC Classes'])
 		self.regular_classes = self.classes[:]
 		self.regular_classes.remove('R')
@@ -46,21 +46,28 @@ class REMIC:
 	def coupon_payment(self, r_month, months_remaining, balance):
 		return r_month*balance/(1-1/(1+r_month)**months_remaining)
 
+<<<<<<< HEAD
+	def calculate_pool_cf_psa_report(self, PSA):
+		'''
+			Calculates cashflows for the pools using the PSA reporting standard.
+		'''
+=======
 	def calculate_pool_cf(self, PSA, hazard_flag = False, hazard_input = []): #KEVIN EDITS
 	'''
 	if harzard_flag = True, then the calculated hazard array must be inputted
 	when flag is true, this will replace the SMM method
 	'''
+>>>>>>> origin/master
 		columns = ['Total Principal', 'Total Interest', 'Balance', 'Interest Available to CMO']
 		self.pool_summary = pd.DataFrame(np.zeros((self.maturity+1, 4)), columns = columns)
-		pools = []
+		self.pools = []
 
-		for pool_index in range(self.pools_info.shape[0]):
+		for pool_index in range(self.n_pools):
 			balance = self.pools_info.loc[pool_index, 'Original Balance']
 			r_month = self.pools_info.loc[pool_index, 'WAC']/12/100
 			term = self.pools_info.loc[pool_index, 'Term']
 			age = self.pools_info.loc[pool_index, 'Age']
-			columns = ['PMT', 'Interest', 'Principal', 'CPR', 'SMM', 'Prepay CF', 'Balance']
+			columns = ['PMT', 'Interest', 'Principal', 'CPR', 'SMM', 'Prepay_CF', 'Balance']
 			pool = pd.DataFrame(np.zeros((self.maturity+1,7)), columns = columns)
 			pool.loc[0,'Balance'] = balance
 			if harzard_flag:
@@ -71,19 +78,65 @@ class REMIC:
 				pool.loc[month, 'Interest'] = prev_balance*r_month
 				pool.loc[month, 'Principal'] = prev_balance if pool.loc[month, 'PMT'] - pool.loc[month, 'Interest'] > prev_balance else pool.loc[month, 'PMT'] - pool.loc[month, 'Interest']
 				pool.loc[month, 'CPR'] = 0.06*PSA*min(1, (month + age)/30)
+<<<<<<< HEAD
+				pool.loc[month, 'SMM'] = 1 - (1 - pool.loc[month, 'CPR'])**(1/12)
+				pool.loc[month, 'Prepay_CF'] = pool.loc[month, 'SMM']*(prev_balance - pool.loc[month, 'Principal'])
+				pool.loc[month, 'Balance'] = prev_balance - pool.loc[month, 'Principal'] - pool.loc[month, 'Prepay_CF']
+			self.pools.append(pool)
+=======
 				if hazard_flag == False:
 					pool.loc[month, 'SMM'] = 1 - (1 - pool.loc[month, 'CPR'])**(1/12)
 				pool.loc[month, 'Prepay CF'] = pool.loc[month, 'SMM']*(prev_balance - pool.loc[month, 'Principal'])
 				pool.loc[month, 'Balance'] = prev_balance - pool.loc[month, 'Principal'] - pool.loc[month, 'Prepay CF']
 			pools.append(pool)
+>>>>>>> origin/master
 
-		for pool in pools:
-			self.pool_summary['Total Principal'] += pool['Principal'] + pool['Prepay CF']
+		for pool in self.pools:
+			self.pool_summary['Total Principal'] += pool['Principal'] + pool['Prepay_CF']
 			self.pool_summary['Total Interest'] += pool['Interest']
 			self.pool_summary['Balance'] += pool['Balance']
 
 		for month in range(1, self.maturity+1):
 			self.pool_summary.loc[month, 'Interest Available to CMO'] = self.pool_interest_rate/12*self.pool_summary.loc[month - 1, 'Balance']
+
+	def calculate_pool_cf_hazard_model(self, hazard_model, simulated_lagged_10_year_rates_A):
+		'''
+			Has to ran after calling calculate_pool_cf_hazard_model.
+			Receives a fitted hazard_model from the Hazard class.
+			This function adds relevant columns to self.pool to value the bonds under the hazard_model.
+		'''
+		# Summer variable
+		month_start = self.start_date.month
+		t = self.pool_summary.index.values
+		T = len(t)
+		N = simulated_lagged_10_year_rates_A.shape[0]
+		month_index = np.mod(t + month_start - 1, 12) + 1
+		summer = np.array([1 if i>=5 and i<=8 else 0 for i in month_index])
+
+		# Coupon gap
+		cpn_gap = [] 
+		# cpn_gap is a list of numpy arrays containing the coupon gap for every simulation and month. 
+		# The list has one numpy array for each pool.
+		# Every row indicates a simulation and every column a month.
+		for pool_index in range(self.n_pools):
+			cpn_gap.append(self.pools_info.loc[pool_index, 'WAC'] - simulated_lagged_10_year_rates_A*100)
+
+		# Prepayment and cash flows
+		prepay_CF = [np.zeros((N, T))]*2
+		for pool_index in range(self.n_pools):
+			pool = self.pools[pool_index]
+			for n in range(1): # N
+				cpn_gap_n = cpn_gap[pool_index][n][:T]
+				covars = np.array((cpn_gap_n, summer)).T
+				smm = hazard_model.calculate_prepayment(t, covars)
+				print(smm)
+				prev_balance = pool.loc[0, 'Balance']
+				for month in range(1, T):
+					prepay_CF[pool_index][n][month] = smm[month]*(prev_balance - pool.loc[month, 'Principal'])
+					prev_balance = prev_balance - pool.loc[month, 'Principal'] - prepay_CF[pool_index][n][month]
+
+		print(prepay_CF)
+
 
 	def calculate_pool_groups_proportions(self):
 		self.principal_groups_proportions = {}
