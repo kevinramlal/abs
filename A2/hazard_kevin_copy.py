@@ -6,7 +6,7 @@ from scipy.optimize import minimize
 from scipy.optimize import fmin_tnc
 from utilities import *
 #import numdifftools as nd
-pd.set_option('display.max_columns', 15)
+
 
 class Hazard:
 	'''
@@ -26,20 +26,13 @@ class Hazard:
 		self.beg_col = beg_col
 		self.end_max = end_max
 		self.cov_cols = cov_cols
-		self.show_prints = show_prints
-		self.show_plots = show_plots
 
-<<<<<<< HEAD
 		self.t_all = self.data[self.end_col]
-		self.t_obs = self.data.loc[self.data[self.prepay_col]==1, self.end_col]
-=======
-		self.t_all = self.data[self.end_col]/12
-		self.t_b = self.data[self.beg_col]/12
+		self.t_b = self.data[self.beg_col]
 		self.event = self.data[self.prepay_col]
-		self.t_obs = self.data.loc[self.data[self.prepay_col]==1, self.end_col]/12
->>>>>>> origin/master
-		self.covars_all = np.array(self.data[self.cov_cols])
-		self.covars_obs = np.array(self.data.loc[self.data[self.prepay_col]==1, self.cov_cols])
+		self.t_obs = self.data.loc[self.data[self.prepay_col]==1, self.end_col]
+		self.covars_all = np.array(self.data[self.cov_cols]) #all 
+		self.covars_obs = np.array(self.data.loc[self.data[self.prepay_col]==1, self.cov_cols]) #we only observe prepaid
 
 
 	# ------------------------------- #
@@ -52,12 +45,12 @@ class Hazard:
 		'''
 		p = theta[0] # p in notation
 		g = theta[1] # gamma in notation
-		b = np.array(theta[2:]) # beta in notation
+		b = np.array(theta[2:]) # beta in notation #Kevin - theta has 4 values
 
 		log1 = np.sum(np.log(p) + np.log(g) + (p-1)*np.log(g*self.t_obs) - np.log(1+(g*self.t_obs)**p))
 		log2 = np.sum(np.matmul(self.covars_obs, b))
 		log3 = -np.sum(np.exp(np.matmul(self.covars_all, b))*np.log(1+(g*self.t_all)**p))
-		logL = log1 + log2 + log3
+		logL = log1 + log2 + log3 #good
 		return -logL
 
 	def grad_log_likelihood(self, theta):
@@ -81,22 +74,22 @@ class Hazard:
 		dlog_b_all = np.zeros(2)
 		for i in range(len(b)):
 			dlog_b_all[i] = -np.sum(np.exp(np.matmul(self.covars_all, b))*np.log(1+(g*self.t_all)**p)*self.covars_all[:,i], axis=0)
-		dlog_b = dlog_b_obs + dlog_b_all
+		dlog_b = dlog_b_obs + dlog_b_all #nice
 
 		grad = [dlog_p, dlog_g] + list(dlog_b)
 		return -np.array(grad)
 
-	def fit_parameself.t_allrs_bruself.t_all(self):
+	def fit_parameself_t_allrs_bruself_t_all(self):
 		bounds = ((0,np.inf),(0,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
 		res = minimize(self.log_likelihood, [2,2,2,2], tol=1e-7, bounds=bounds)
 		self.theta = res.x
 
-	def fit_parameself.t_allrs_grad(self):
+	def fit_parameself_t_allrs_grad(self):
 		bounds = ((0,np.inf),(0,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
 		res = minimize(self.log_likelihood, [2,2,2,2], method='trust-constr', jac=self.grad_log_likelihood, tol=1e-7, bounds=bounds)
 		self.theta = res.x
 
-	def parameself.t_allrs_hessian(self):
+	def parameself_t_allrs_hessian(self):
 		eps = 1e-4
 		k = len(self.theta)
 		hess = np.zeros((k,k))
@@ -116,7 +109,7 @@ class Hazard:
 	#	hess = hess_fun(self.theta)
 	#	print(hess)
 
-	def parameself.t_allrs_se(self):
+	def parameself_t_allrs_se(self):
 		'''
 			This is an approximation.
 			The correct way, by definition, is to calculaself.t_all the second derivative analytically and take expectancy given the data.
@@ -136,27 +129,19 @@ class Hazard:
 		#print('\n' + laself.t_allx_table(param_df, caption="Non-time varying hazard model estimaself.t_alls.", label="a_estimaself.t_alls", index=True))
 
 
-	def baseline_hazard(self, t):
+	def baseline_hazard(self):
 		p = self.theta[0] # p in notation
 		g = self.theta[1] # gamma in notation
 
-		base_hz = g*p*(g*t)**(p-1)/(1+(g*t)**p)
+		t = np.arange(0,self.end_max+1)/12
+		b_lambda = g*p*(g*t)**(p-1)/(1+(g*t)**p)
 
-		if self.show_plots:
-			plt.plot(t, base_hz)
-			plt.xlabel('Years')
-			plt.ylabel('Baseline hazard')
-			plt.show()
+		plt.plot(t, b_lambda)
+		plt.xlabel('Years')
+		plt.ylabel('Baseline hazard')
+		plt.show()
+		return b_lambda
 
-<<<<<<< HEAD
-		return base_hz
-
-	def calculate_prepayment(self, t, covars):
-		base_hz = self.baseline_hazard(t)
-		b = self.theta[2:]
-		prepayment = base_hz*np.exp(np.matmul(covars, b))
-		return prepayment
-=======
 	# ------------------------------- #
 	#  Time varying hazard model  #
 	# ------------------------------- #
@@ -256,10 +241,9 @@ class Hazard:
 	    #return  np.append(logL, grad)
 	    return logL
 
-		def param_estimate_dynamic(self):
-			bounds = ((0.00001,np.inf),(0,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
-			phist = [0.2,0.5,1,0.1]
-			cnt = 0
-			result_min = minimize(log_log_like,phist,args = (self.t_b,self.t_all,self.event,self.covars_all),jac=log_log_grad, tol=1e-7, bounds=bounds)
-			self.theta = result.x
->>>>>>> origin/master
+	def param_estimate_dynamic(self):
+		bounds = ((0.00001,np.inf),(0,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
+		phist = [0.2,0.5,1,0.1]
+		cnt = 0
+		result_min = minimize(log_log_like,phist,args = (self.t_b,self.t_all,self.event,self.covars_all),jac=log_log_grad, tol=1e-7, bounds=bounds)
+		self.theta = result.x
