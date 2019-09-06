@@ -63,18 +63,18 @@ class REMIC:
 			columns = ['PMT', 'Interest', 'Principal', 'CPR', 'SMM', 'Prepay CF', 'Balance']
 			pool = pd.DataFrame(np.zeros((self.maturity+1,7)), columns = columns)
 			pool.loc[0,'Balance'] = balance
+			if harzard_flag:
+				pool['SMM'] = hazard_input #Use the calculated hazard rates 
 			for month in range(1, term+1):
 				prev_balance = pool.loc[month-1,'Balance']
 				pool.loc[month, 'PMT'] = self.coupon_payment(r_month, term - (month - 1), prev_balance)
 				pool.loc[month, 'Interest'] = prev_balance*r_month
 				pool.loc[month, 'Principal'] = prev_balance if pool.loc[month, 'PMT'] - pool.loc[month, 'Interest'] > prev_balance else pool.loc[month, 'PMT'] - pool.loc[month, 'Interest']
 				pool.loc[month, 'CPR'] = 0.06*PSA*min(1, (month + age)/30)
-				pool.loc[month, 'Prepay CF'] = pool.loc[month, 'SMM']*(prev_balance - pool.loc[month, 'Principal'])
-				pool.loc[month, 'Balance'] = prev_balance - pool.loc[month, 'Principal'] - pool.loc[month, 'Prepay CF']
 				if hazard_flag == False:
 					pool.loc[month, 'SMM'] = 1 - (1 - pool.loc[month, 'CPR'])**(1/12)
-			if harzard_flag:
-				pool['SMM'] = hazard_input #Use the calculated hazard rates 
+				pool.loc[month, 'Prepay CF'] = pool.loc[month, 'SMM']*(prev_balance - pool.loc[month, 'Principal'])
+				pool.loc[month, 'Balance'] = prev_balance - pool.loc[month, 'Principal'] - pool.loc[month, 'Prepay CF']
 			pools.append(pool)
 
 		for pool in pools:
