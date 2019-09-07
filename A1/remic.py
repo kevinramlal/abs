@@ -99,6 +99,14 @@ class REMIC:
 			#print(latex_table(dur_conv, caption = "Duration and Convexity", label = "duration", index = True))
 
 		#---------------------------
+		# OAS
+		#---------------------------
+
+		cl = 'CA'
+		par_value = self.classes_info.loc[cl, 'Original Balance']
+
+
+		#---------------------------
 		# Hazard Rate
 		#---------------------------
 
@@ -110,6 +118,8 @@ class REMIC:
 			plt.xlabel("Months")
 			plt.ylabel("Average Hazard Rate")
 			plt.show()
+
+
 
 	def calculate_pool_simulation_prepayment(self, hazard_model, simulated_lagged_10_year_rates_A):
 		'''
