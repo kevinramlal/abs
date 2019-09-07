@@ -342,7 +342,7 @@ class Homework1:
         simulated_Z_A = self.fi.hull_white_discount_factors_antithetic_path(simulated_rates_A, dt)
         return (simulated_rates_A, simulated_Z_A)
 
-    def calculate_T_year_rate_APR(self, r_A, lag, horizon):
+    def calculate_T_year_rate_APR(self, r_A, lag, horizon, previous_rates):
         '''
             Intended to return the 10-year Treasury rate at the end of every pool with a lag of 3 months (horizon is 10).
             Returns a list where in each position (corresponding to each ending month in end) has a tupple with the (antithetic) APR
@@ -354,7 +354,6 @@ class Homework1:
         Z_A = self.fi.hull_white_discount_factor(r_A, 0, horizon, self.theta, self.kappa, self.sigma)
         r_APR = 12*((1/Z_A)**(1/(12*horizon)) - 1)
         r_APR[:, lag:] = r_APR[:, :-lag]
-        # We have to replace the first three values of each path with the real values. Setting to zero for now.
-        r_APR[:, :lag] = 0
+        r_APR[:, :lag] = np.array(previous_rates[-lag:])
         return r_APR
 
