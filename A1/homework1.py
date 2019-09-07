@@ -18,7 +18,7 @@ register_matplotlib_converters()
 import fixed_income
 from utilities import *
 import os
-print(os.path.dirname(__file__))
+# print(os.path.dirname(__file__))
 
 class Homework1:
 
