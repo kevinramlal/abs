@@ -354,18 +354,4 @@ class REMIC:
 		oas = res.x[0]
 		return oas
 
-	def find_oas_classes(self, simulated_rates_avg):
-		oas_summary_np = summary_np = np.zeros((1,len(self.classes)))
-		for cl_ind in range(len(self.classes)):
-			oas = 0.0
-			cashflows = np.array(total_cf.iloc[:, cl_ind])
-			par = self.classes_balance.iloc[0, cl_ind]
-			optimum = minimize(self.to_minimize_oas, x0 = [oas] , args = (simulated_rates_avg, cashflows,par))
-			oas_summary_np[0, cl_ind] = optimum.x
-		oas_summary = pd.DataFrame(oas_summary_np, columns=self.classes)
-		oas_summary.index = ['OAS']
-		oas_summary = oas_summary.drop(columns=['R'])
-
-		if self.show_prints:
-			print("\n2c) OAS results", oas_summary)
 
