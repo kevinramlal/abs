@@ -13,7 +13,7 @@ class Hazard:
 		Calibraself.t_alls hazard models.
 	'''
 
-	def __init__(self, data, prepay_col, end_col,beg_col, end_max, cov_cols, show_prints=False, show_plots=False):
+	def __init__(self, data, prepay_col, end_col, beg_col, end_max, cov_cols, show_prints=False, show_plots=False):
 		'''
 			prepay_col: String indicating name of column data DataFrame with a 1 if there was prepay and 0 if not.
 			end_col: String indicating name of column in data DataFrame with the month the mortgage ended.
@@ -29,15 +29,12 @@ class Hazard:
 		self.show_prints = show_prints
 		self.show_plots = show_plots
 
-<<<<<<< HEAD
 		self.t_all = self.data[self.end_col]
 		self.t_obs = self.data.loc[self.data[self.prepay_col]==1, self.end_col]
-=======
-		self.t_all = self.data[self.end_col]/12
-		self.t_b = self.data[self.beg_col]/12
+		if beg_col != "":
+			self.t_b = self.data[self.beg_col]
 		self.event = self.data[self.prepay_col]
-		self.t_obs = self.data.loc[self.data[self.prepay_col]==1, self.end_col]/12
->>>>>>> origin/master
+		self.t_obs = self.data.loc[self.data[self.prepay_col]==1, self.end_col]
 		self.covars_all = np.array(self.data[self.cov_cols])
 		self.covars_obs = np.array(self.data.loc[self.data[self.prepay_col]==1, self.cov_cols])
 
@@ -86,17 +83,17 @@ class Hazard:
 		grad = [dlog_p, dlog_g] + list(dlog_b)
 		return -np.array(grad)
 
-	def fit_parameself.t_allrs_bruself.t_all(self):
+	def fit_parameters_brute(self):
 		bounds = ((0,np.inf),(0,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
 		res = minimize(self.log_likelihood, [2,2,2,2], tol=1e-7, bounds=bounds)
 		self.theta = res.x
 
-	def fit_parameself.t_allrs_grad(self):
+	def fit_parameters_grad(self):
 		bounds = ((0,np.inf),(0,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
 		res = minimize(self.log_likelihood, [2,2,2,2], method='trust-constr', jac=self.grad_log_likelihood, tol=1e-7, bounds=bounds)
 		self.theta = res.x
 
-	def parameself.t_allrs_hessian(self):
+	def parameters_hessian(self):
 		eps = 1e-4
 		k = len(self.theta)
 		hess = np.zeros((k,k))
@@ -116,12 +113,12 @@ class Hazard:
 	#	hess = hess_fun(self.theta)
 	#	print(hess)
 
-	def parameself.t_allrs_se(self):
+	def parameters_se(self):
 		'''
 			This is an approximation.
 			The correct way, by definition, is to calculaself.t_all the second derivative analytically and take expectancy given the data.
 		'''
-		hess = self.parameself.t_allrs_hessian()
+		hess = self.parameters_hessian()
 		var = np.diagonal(np.linalg.inv(hess)) # We already flipped the sign in the log-likelihood.
 		n = self.data.shape[0]
 		se = np.sqrt(var)/np.sqrt(n)
@@ -148,7 +145,6 @@ class Hazard:
 			plt.ylabel('Baseline hazard')
 			plt.show()
 
-<<<<<<< HEAD
 		return base_hz
 
 	def calculate_prepayment(self, t, covars):
@@ -156,7 +152,8 @@ class Hazard:
 		b = self.theta[2:]
 		prepayment = base_hz*np.exp(np.matmul(covars, b))
 		return prepayment
-=======
+
+
 	# ------------------------------- #
 	#  Time varying hazard model  #
 	# ------------------------------- #
@@ -256,10 +253,11 @@ class Hazard:
 	    #return  np.append(logL, grad)
 	    return logL
 
-		def param_estimate_dynamic(self):
-			bounds = ((0.00001,np.inf),(0,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
-			phist = [0.2,0.5,1,0.1]
-			cnt = 0
-			result_min = minimize(log_log_like,phist,args = (self.t_b,self.t_all,self.event,self.covars_all),jac=log_log_grad, tol=1e-7, bounds=bounds)
-			self.theta = result.x
->>>>>>> origin/master
+	def param_estimate_dynamic(self):
+		bounds = ((0.00001,np.inf),(0,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
+		phist = [0.2,0.5,1,0.1]
+		cnt = 0
+		result_min = minimize(log_log_like,phist,args = (self.t_b,self.t_all,self.event,self.covars_all),jac=log_log_grad, tol=1e-7, bounds=bounds)
+		self.theta = result.x
+
+
