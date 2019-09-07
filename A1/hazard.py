@@ -240,14 +240,14 @@ class Hazard:
 	    #return  np.append(logL, grad)
 	    return logL
 
-		def param_estimate_dynamic(self):
-			bounds = ((0.00001,np.inf),(0,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
-			phist = [0.2,0.5,1,0.1]
-			cnt = 0
-			result_min = minimize(log_log_like,phist,args = (self.t_b,self.t_all,self.event,self.covars_all),jac=log_log_grad, tol=1e-7, bounds=bounds)
-			self.theta = result_min.x
-			N = len(self.data['id_loan'].unique())
-			hess_inv_N = result_min.hess_inv.todense()/N
-			self.theta_se = np.zeros(len(params))
-			for i in range(len(hess_inv_N)):
-			    self.theta_se[i] = np.sqrt(hess_inv_N[i,i])
+	def param_estimate_dynamic(self):
+		bounds = ((0.00001,np.inf),(0,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
+		phist = [0.2,0.5,1,0.1]
+		cnt = 0
+		result_min = minimize(log_log_like,phist,args = (self.t_b,self.t_all,self.event,self.covars_all),jac=log_log_grad, tol=1e-7, bounds=bounds)
+		self.theta = result_min.x
+		N = len(self.data['id_loan'].unique())
+		hess_inv_N = result_min.hess_inv.todense()/N
+		self.theta_se = np.zeros(len(params))
+		for i in range(len(hess_inv_N)):
+		    self.theta_se[i] = np.sqrt(hess_inv_N[i,i])
