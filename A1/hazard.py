@@ -265,5 +265,3 @@ class Hazard:
 		self.theta_se = np.zeros(len(params))
 		for i in range(len(hess_inv_N)):
 		    self.theta_se[i] = np.sqrt(hess_inv_N[i,i])
-
-
