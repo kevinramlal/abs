@@ -49,11 +49,17 @@ class REMIC:
 
 
 	def simulation_result(self, hazard_model, simulated_lagged_10_year_rates_A):
+
+		#---------------------------
+		# Cashflows and Prices
+		#---------------------------
+
 		SMM = self.calculate_pool_simulation_prepayment(hazard_model, simulated_lagged_10_year_rates_A)
 		N = simulated_lagged_10_year_rates_A.shape[0]
 		Nh = int(N/2)
 		prices_all = np.zeros((N, len(self.classes)))
 		prices_paired = np.zeros((Nh, len(self.classes)))
+		avg_cf = np.zeros((self.maturity+1,len(self.classes)))
 		for n in range(N):
 			print("Simulation: " + str(n+1) + "/" + str(N))
 			r_n = self.simulated_rates[n]
@@ -61,7 +67,9 @@ class REMIC:
 			SMM_n = [SMM[i][n] for i in range(self.n_pools)]
 			pool_summary_n = self.calculate_pool_cf(SMM_n)
 			total_cf = self.calculate_classes_cf(pool_summary_n, r_n)
+			avg_cf = avg_cf + total_cf
 			prices_all[n] = self.price_classes(total_cf, Z_n)
+		avg_cf = avg_cf/N
 
 		# Pair antithetic prices
 		for n in range(Nh):
@@ -76,8 +84,20 @@ class REMIC:
 		self.simulation_summary.index = self.classes
 
 		if self.show_prints:
-			print('\nPart b:' + str(self.simulation_summary) + '\n')
+			print('\nPart B:\n' + str(self.simulation_summary) + '\n')
 			#print(latex_table(self.simulation_summary, caption = "Simulation summary", label = "prices", index = True))
+
+		#---------------------------
+		# Duration and Convexity
+		#---------------------------
+
+		dur_conv = self.calculate_durations_and_convexities(avg_cf, dr=0.0001, dt=1/12)
+
+		if self.show_prints:
+			print("\nPart C:\n" + str(dur_conv) + '\n')
+			#print(latex_table(dur_conv, caption = "Duration and Convexity", label = "duration", index = True))
+
+
 
 	def calculate_pool_simulation_prepayment(self, hazard_model, simulated_lagged_10_year_rates_A):
 		'''
@@ -232,41 +252,7 @@ class REMIC:
 			prices[cl_ind] = np.sum(cashflows*Z[:m])
 		return prices
 
-
-	def price_classes_b(self, simulated_Z):
-		'''
-			Calculates prices of all classes given the simulated discount factors.
-		'''
-
-		Z_up = simulated_Z[0]
-		Z_dn = simulated_Z[1]
-
-
-		n = Z_up.shape[0]
-		simulated_prices = np.zeros((n, len(self.classes)))
-		m = total_cf.shape[0]
-
-		for i in range(n):
-			Z_up_i = np.array(Z_up[i][:m])
-			Z_dn_i = np.array(Z_dn[i][:m])
-
-			for cl_ind in range(len(self.classes)):
-				cashflows = np.array(total_cf.iloc[:, cl_ind])
-				simulated_prices[i, cl_ind] = (np.sum(cashflows*Z_up_i) + np.sum(cashflows*Z_dn_i))/2
-
-		summary_np = np.zeros((2,len(self.classes)))
-		summary_np[0, :] = simulated_prices.mean(0)
-		summary_np[1, :] = simulated_prices.std(0)/np.sqrt(n)
-
-		self.simulation_summary = pd.DataFrame(summary_np.T, columns = ['Average price', 'Standard error'])
-		self.simulation_summary.index = self.classes
-
-		if self.show_prints:
-			print("\n2a) Monte Carlo results", self.simulation_summary)
-			#print(latex_table(simulation_summary, caption = "Simulation summary", label = "2a_summary", index = True))
-
-
-	def calculate_price_given_yield(self, y, cl, dt):
+	def calculate_price_given_yield(self, y, total_cf, cl, dt):
 		'''
 			Continuous compounding.
 			cl is the class
@@ -277,11 +263,11 @@ class REMIC:
 		price = np.sum(cashflows*Z)
 		return price
 
-	def calculate_durations_and_convexities(self, dr, dt):
+	def calculate_durations_and_convexities(self, total_cf, dr, dt):
 
 		def yield_auxiliary(y, *data):
 			cl, dt, price = data
-			price_y = self.calculate_price_given_yield(y, cl, dt)
+			price_y = self.calculate_price_given_yield(y, total_cf, cl, dt)
 			return price_y - price
 
 		y = np.zeros(len(self.classes))
@@ -293,11 +279,11 @@ class REMIC:
 			P = self.simulation_summary.loc[cl, 'Average price']
 
 			# Yield
-			y[cl_ind] = fsolve(yield_auxiliary, 0.05, args = (cl, dt, P))
+			y[cl_ind] = fsolve(yield_auxiliary, self.pool_interest_rate, args = (cl, dt, P))
 
 			# Prices
-			P_up = self.calculate_price_given_yield(y[cl_ind] + dr, cl, dt)
-			P_dn = self.calculate_price_given_yield(y[cl_ind] - dr, cl, dt)
+			P_up = self.calculate_price_given_yield(y[cl_ind] + dr, total_cf, cl, dt)
+			P_dn = self.calculate_price_given_yield(y[cl_ind] - dr, total_cf, cl, dt)
 
 			# Duration
 			dur[cl_ind] = (P_dn-P_up)/(P*2*dr)
@@ -310,14 +296,10 @@ class REMIC:
 		dur_conv[1, :] = dur
 		dur_conv[2, :] = conv
 
-		self.dur_conv = pd.DataFrame(dur_conv.T, columns = ['Yields', 'Duration', 'Convexity'])
-		self.dur_conv.index = self.classes
+		dur_conv = pd.DataFrame(dur_conv.T, columns = ['Yields', 'Duration', 'Convexity'])
+		dur_conv.index = self.classes
 
-		if self.show_prints:
-			print("\n2b) Duration and convexity results", self.simulation_summary)
-			#print(latex_table(self.dur_conv, caption = "Duration and Convexity", label = "2b_summary", index = True))
-
-		return (dur, conv)
+		return dur_conv
 
 	def to_minimize_oas(self, params, sim_avg_rates, cfs,par):
 		oas = params[0]

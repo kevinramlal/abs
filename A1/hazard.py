@@ -131,7 +131,7 @@ class Hazard:
 		param_df.index = param_names
 
 		if self.show_prints:
-			print('\nPart a:\n\n' + str(param_df) + '\n')
+			print('\nPart A:\n' + str(param_df) + '\n')
 			#print('\n' + laself.t_allx_table(param_df, caption="Non-time varying hazard model estimaself.t_alls.", label="a_estimaself.t_alls", index=True))
 
 

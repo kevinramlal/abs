@@ -34,10 +34,5 @@ simulated_lagged_10_year_rates_A = hw1.calculate_T_year_rate_APR(simulated_rates
 hw_remic = remic.REMIC(start_date, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates_A, simulated_Z_A, show_prints=True, show_plots=False)
 hw_remic.simulation_result(hz, simulated_lagged_10_year_rates_A)
 
-# REMIC pricing
-#hw_remic.price_classes(simulated_Z_A)
-#hw_remic.calculate_durations_and_convexities(dr=0.0001, dt=1/12)
-
-
 #Calculating Ooption Adjusted Spreads
 #hw_remic.find_oas_classes(simulated_rates_A)
