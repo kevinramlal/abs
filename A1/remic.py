@@ -1,6 +1,7 @@
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from scipy.optimize import fsolve
 from datetime import datetime
@@ -97,7 +98,18 @@ class REMIC:
 			print("\nPart C:\n" + str(dur_conv) + '\n')
 			#print(latex_table(dur_conv, caption = "Duration and Convexity", label = "duration", index = True))
 
+		#---------------------------
+		# Hazard Rate
+		#---------------------------
 
+		print(SMM[0])
+		avg_hz = np.mean(SMM[0], axis=0)
+
+		if self.show_plots:
+			plt.plot(avg_hz)
+			plt.xlabel("Months")
+			plt.ylabel("Average Hazard Rate")
+			plt.show()
 
 	def calculate_pool_simulation_prepayment(self, hazard_model, simulated_lagged_10_year_rates_A):
 		'''

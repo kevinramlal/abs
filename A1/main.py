@@ -31,7 +31,7 @@ classes_info = pd.read_csv('classes_general_info.csv', thousands=',')
 principal_sequential_pay = {'1': ['CA','CY'], '2': ['CG','VE','CM','GZ','TC','CZ']}
 accruals_sequential_pay = {'GZ': ['VE','CM'], 'CZ': ['CG','VE','CM','GZ','TC']}
 simulated_lagged_10_year_rates_A = hw1.calculate_T_year_rate_APR(simulated_rates_A, lag=3, horizon=10)
-hw_remic = remic.REMIC(start_date, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates_A, simulated_Z_A, show_prints=True, show_plots=False)
+hw_remic = remic.REMIC(start_date, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates_A, simulated_Z_A, show_prints=True, show_plots=True)
 hw_remic.simulation_result(hz, simulated_lagged_10_year_rates_A)
 
 #Calculating Ooption Adjusted Spreads
