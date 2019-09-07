@@ -4,8 +4,12 @@ import pandas as pd
 from scipy.optimize import minimize
 from scipy.optimize import fsolve
 from datetime import datetime
+import time
+import sys
 from utilities import *
 
+import warnings
+warnings.filterwarnings("ignore")
 
 class REMIC:
 	'''
@@ -43,60 +47,46 @@ class REMIC:
 
 		self.calculate_pool_groups_proportions()
 
-	def coupon_payment(self, r_month, months_remaining, balance):
-		return r_month*balance/(1-1/(1+r_month)**months_remaining)
 
-	def calculate_pool_cf(self, PSA, hazard_flag = False, hazard_input = []):
+	def simulation_result(self, hazard_model, simulated_lagged_10_year_rates_A):
+		SMM = self.calculate_pool_simulation_prepayment(hazard_model, simulated_lagged_10_year_rates_A)
+		N = simulated_lagged_10_year_rates_A.shape[0]
+		Nh = int(N/2)
+		prices_all = np.zeros((N, len(self.classes)))
+		prices_paired = np.zeros((Nh, len(self.classes)))
+		for n in range(N):
+			print("Simulation: " + str(n+1) + "/" + str(N))
+			r_n = self.simulated_rates[n]
+			Z_n = self.simulated_Z[n]
+			SMM_n = [SMM[i][n] for i in range(self.n_pools)]
+			pool_summary_n = self.calculate_pool_cf(SMM_n)
+			total_cf = self.calculate_classes_cf(pool_summary_n, r_n)
+			prices_all[n] = self.price_classes(total_cf, Z_n)
+
+		# Pair antithetic prices
+		for n in range(Nh):
+			prices_paired[n] = (prices_all[n] + prices_all[n+Nh])/2
+
+		summary_np = np.zeros((3,len(self.classes)))
+		summary_np[0, :] = prices_paired.mean(axis=0)
+		summary_np[1, :] = prices_paired.std(axis=0)
+		summary_np[2, :] = summary_np[1, :]/np.sqrt(Nh)
+
+		self.simulation_summary = pd.DataFrame(summary_np.T, columns = ['Average price', 'Standard Deviation', 'Standard error'])
+		self.simulation_summary.index = self.classes
+
+		if self.show_prints:
+			print('\nPart b:' + str(self.simulation_summary) + '\n')
+			#print(latex_table(self.simulation_summary, caption = "Simulation summary", label = "prices", index = True))
+
+	def calculate_pool_simulation_prepayment(self, hazard_model, simulated_lagged_10_year_rates_A):
 		'''
-			If harzard_flag = True, then the calculated hazard array must be inputted
-			When flag is true, this will replace the SMM method
-		'''
-		columns = ['Total Principal', 'Total Interest', 'Balance', 'Interest Available to CMO']
-		self.pool_summary = pd.DataFrame(np.zeros((self.maturity+1, 4)), columns = columns)
-		self.pools = []
-
-		for pool_index in range(self.n_pools):
-			balance = self.pools_info.loc[pool_index, 'Original Balance']
-			r_month = self.pools_info.loc[pool_index, 'WAC']/12/100
-			term = self.pools_info.loc[pool_index, 'Term']
-			age = self.pools_info.loc[pool_index, 'Age']
-			columns = ['PMT', 'Interest', 'Principal', 'CPR', 'SMM', 'Prepay_CF', 'Balance']
-			pool = pd.DataFrame(np.zeros((self.maturity+1,7)), columns = columns)
-			pool.loc[0,'Balance'] = balance
-			if harzard_flag:
-				pool['SMM'] = hazard_input #Use the calculated hazard rates 
-			for month in range(1, term+1):
-				prev_balance = pool.loc[month-1,'Balance']
-				pool.loc[month, 'PMT'] = self.coupon_payment(r_month, term - (month - 1), prev_balance)
-				pool.loc[month, 'Interest'] = prev_balance*r_month
-				pool.loc[month, 'Principal'] = prev_balance if pool.loc[month, 'PMT'] - pool.loc[month, 'Interest'] > prev_balance else pool.loc[month, 'PMT'] - pool.loc[month, 'Interest']
-				pool.loc[month, 'CPR'] = 0.06*PSA*min(1, (month + age)/30)
-				pool.loc[month, 'SMM'] = 1 - (1 - pool.loc[month, 'CPR'])**(1/12)
-				pool.loc[month, 'Prepay_CF'] = pool.loc[month, 'SMM']*(prev_balance - pool.loc[month, 'Principal'])
-				pool.loc[month, 'Balance'] = prev_balance - pool.loc[month, 'Principal'] - pool.loc[month, 'Prepay_CF']
-				if hazard_flag == False:
-					pool.loc[month, 'SMM'] = 1 - (1 - pool.loc[month, 'CPR'])**(1/12)
-				pool.loc[month, 'Prepay CF'] = pool.loc[month, 'SMM']*(prev_balance - pool.loc[month, 'Principal'])
-				pool.loc[month, 'Balance'] = prev_balance - pool.loc[month, 'Principal'] - pool.loc[month, 'Prepay CF']
-			pools.append(pool)
-
-		for pool in self.pools:
-			self.pool_summary['Total Principal'] += pool['Principal'] + pool['Prepay_CF']
-			self.pool_summary['Total Interest'] += pool['Interest']
-			self.pool_summary['Balance'] += pool['Balance']
-
-		for month in range(1, self.maturity+1):
-			self.pool_summary.loc[month, 'Interest Available to CMO'] = self.pool_interest_rate/12*self.pool_summary.loc[month - 1, 'Balance']
-
-	def calculate_pool_cf_hazard_model(self, hazard_model, simulated_lagged_10_year_rates_A):
-		'''
-			Has to ran after calling calculate_pool_cf_hazard_model.
 			Receives a fitted hazard_model from the Hazard class.
-			This function adds relevant columns to self.pool to value the bonds under the hazard_model.
+			Returns numpy array with SMM where rows indicate simulation path and columns indicate month.
 		'''
 		# Summer variable
 		month_start = self.start_date.month
-		t = self.pool_summary.index.values
+		t = np.arange(0,self.maturity+1)
 		T = len(t)
 		N = simulated_lagged_10_year_rates_A.shape[0]
 		month_index = np.mod(t + month_start - 1, 12) + 1
@@ -110,22 +100,55 @@ class REMIC:
 		for pool_index in range(self.n_pools):
 			cpn_gap.append(self.pools_info.loc[pool_index, 'WAC'] - simulated_lagged_10_year_rates_A*100)
 
-		# Prepayment and cash flows
-		prepay_CF = [np.zeros((N, T))]*2
+		# Prepayment
+		SMM = [np.zeros((N, T))]*self.n_pools
 		for pool_index in range(self.n_pools):
-			pool = self.pools[pool_index]
-			for n in range(1): # N
+			for n in range(N):
 				cpn_gap_n = cpn_gap[pool_index][n][:T]
 				covars = np.array((cpn_gap_n, summer)).T
-				smm = hazard_model.calculate_prepayment(t, covars)
-				print(smm)
-				prev_balance = pool.loc[0, 'Balance']
-				for month in range(1, T):
-					prepay_CF[pool_index][n][month] = smm[month]*(prev_balance - pool.loc[month, 'Principal'])
-					prev_balance = prev_balance - pool.loc[month, 'Principal'] - prepay_CF[pool_index][n][month]
+				SMM[pool_index][n] = hazard_model.calculate_prepayment(t, covars)
 
-		print(prepay_CF)
+		return SMM
 
+	def calculate_pool_cf(self, SMM):
+		'''
+			If harzard_flag = True, then the calculated hazard array must be inputted
+			When flag is true, this will replace the SMM method
+		'''
+		columns = ['Total Principal', 'Total Interest', 'Balance', 'Interest Available to CMO']
+		pool_summary = pd.DataFrame(np.zeros((self.maturity+1, 4)), columns = columns)
+		pools = []
+
+		for pool_index in range(self.n_pools):
+			balance = self.pools_info.loc[pool_index, 'Original Balance']
+			r_month = self.pools_info.loc[pool_index, 'WAC']/12/100
+			term = self.pools_info.loc[pool_index, 'Term']
+			age = self.pools_info.loc[pool_index, 'Age']
+			columns = ['PMT', 'Interest', 'Principal', 'CPR', 'SMM', 'Prepay_CF', 'Balance']
+			pool = pd.DataFrame(np.zeros((self.maturity+1,7)), columns = columns)
+			pool.loc[0,'Balance'] = balance
+			pool['SMM'] = SMM[pool_index]
+			for month in range(1, term+1):
+				prev_balance = pool.loc[month-1,'Balance']
+				pool.loc[month, 'PMT'] = self.coupon_payment(r_month, term - (month - 1), prev_balance)
+				pool.loc[month, 'Interest'] = prev_balance*r_month
+				pool.loc[month, 'Principal'] = prev_balance if pool.loc[month, 'PMT'] - pool.loc[month, 'Interest'] > prev_balance else pool.loc[month, 'PMT'] - pool.loc[month, 'Interest']
+				pool.loc[month, 'Prepay_CF'] = pool.loc[month, 'SMM']*(prev_balance - pool.loc[month, 'Principal'])
+				pool.loc[month, 'Balance'] = prev_balance - pool.loc[month, 'Principal'] - pool.loc[month, 'Prepay_CF']
+			pools.append(pool)
+
+		for pool in pools:
+			pool_summary['Total Principal'] += pool['Principal'] + pool['Prepay_CF']
+			pool_summary['Total Interest'] += pool['Interest']
+			pool_summary['Balance'] += pool['Balance']
+
+		for month in range(1, self.maturity+1):
+			pool_summary.loc[month, 'Interest Available to CMO'] = self.pool_interest_rate/12*pool_summary.loc[month - 1, 'Balance']
+
+		return pool_summary
+
+	def coupon_payment(self, r_month, months_remaining, balance):
+		return r_month*balance/(1-1/(1+r_month)**months_remaining)
 
 	def calculate_pool_groups_proportions(self):
 		self.principal_groups_proportions = {}
@@ -137,70 +160,80 @@ class REMIC:
 		for group in self.principal_groups_proportions:
 			self.principal_groups_proportions[group] = float(self.principal_groups_proportions[group])/total_balance
 
-	def calculate_classes_cf(self):
+	def calculate_classes_cf(self, pool_summary, r):
 		#calculated cashflow of all bonds given the simulated interest rates
 		columns = self.classes
-		self.classes_balance = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
-		self.classes_interest = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
-		self.classes_accrued = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
-		self.classes_principal = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
-		self.classes_interest_cf = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
+		classes_balance = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
+		classes_interest = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
+		classes_accrued = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
+		classes_principal = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
+		classes_interest_cf = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
 
 		# Initial Balance
 		for cl in self.classes:
-			self.classes_balance.loc[0, cl] = self.classes_info.loc[cl, 'Original Balance']
+			classes_balance.loc[0, cl] = self.classes_info.loc[cl, 'Original Balance']
 
-		for month in range(1, self.pool_summary.shape[0]):
+		for month in range(1, pool_summary.shape[0]):
 
 			# Interest
 			for cl in self.accrual_classes:
-				self.classes_interest.loc[month, cl] = self.pool_interest_rate/12*self.classes_balance.loc[month - 1, cl]
+				classes_interest.loc[month, cl] = self.pool_interest_rate/12*classes_balance.loc[month - 1, cl]
 
 			# Distribute Principal
-			principal = self.pool_summary.loc[month, 'Total Principal']
+			principal = pool_summary.loc[month, 'Total Principal']
 			for group in self.principal_groups_proportions:
 				principal_group_remaining = principal*self.principal_groups_proportions[group]
 				for cl in self.principal_sequential_pay[group]:
-					payment = min(principal_group_remaining, self.classes_balance.loc[month - 1, cl])
-					self.classes_principal.loc[month, cl] += payment
+					payment = min(principal_group_remaining, classes_balance.loc[month - 1, cl])
+					classes_principal.loc[month, cl] += payment
 					principal_group_remaining -= payment
 
 			# Distribute Interest
 			for cl in self.accrual_classes:
-				interest_remaining = self.classes_interest.loc[month, cl]
+				interest_remaining = classes_interest.loc[month, cl]
 				for cl_prin in self.accruals_sequential_pay[cl]:
-					payment = min(interest_remaining, self.classes_balance.loc[month - 1, cl_prin] - self.classes_principal.loc[month, cl_prin])
-					self.classes_principal.loc[month, cl_prin] += payment
+					payment = min(interest_remaining, classes_balance.loc[month - 1, cl_prin] - classes_principal.loc[month, cl_prin])
+					classes_principal.loc[month, cl_prin] += payment
 					interest_remaining -= payment
 
 				last_class = self.accruals_sequential_pay[cl][-1]
-				if self.classes_balance.loc[month - 1, last_class] - self.classes_principal.loc[month - 1, last_class] > 0:
-					self.classes_principal.loc[month, cl] += interest_remaining
-					self.classes_accrued.loc[month, cl] = self.classes_interest.loc[month, cl]
+				if classes_balance.loc[month - 1, last_class] - classes_principal.loc[month - 1, last_class] > 0:
+					classes_principal.loc[month, cl] += interest_remaining
+					classes_accrued.loc[month, cl] = classes_interest.loc[month, cl]
 				else:
-					self.classes_principal.loc[month, cl] += min(interest_remaining, self.classes_principal.loc[month, last_class])
-					self.classes_accrued.loc[month, cl] = min(self.classes_interest.loc[month, cl], self.classes_principal.loc[month, last_class])
+					classes_principal.loc[month, cl] += min(interest_remaining, classes_principal.loc[month, last_class])
+					classes_accrued.loc[month, cl] = min(classes_interest.loc[month, cl], classes_principal.loc[month, last_class])
 
 			# Update Balance
 			for cl in self.regular_classes:
-				self.classes_balance.loc[month, cl] = max(0, self.classes_balance.loc[month - 1, cl] + self.classes_accrued.loc[month, cl] - self.classes_principal.loc[month, cl])
+				classes_balance.loc[month, cl] = max(0, classes_balance.loc[month - 1, cl] + classes_accrued.loc[month, cl] - classes_principal.loc[month, cl])
 
 			# Interest cash flow
 			for cl in self.regular_classes:
 				if cl in self.accrual_classes:
-					self.classes_interest_cf.loc[month, cl] = self.classes_interest.loc[month, cl] - self.classes_accrued.loc[month, cl]
+					classes_interest_cf.loc[month, cl] = classes_interest.loc[month, cl] - classes_accrued.loc[month, cl]
 				else:
-					self.classes_interest_cf.loc[month, cl] = self.pool_interest_rate/12*self.classes_balance.loc[month - 1, cl]
+					classes_interest_cf.loc[month, cl] = self.pool_interest_rate/12*classes_balance.loc[month - 1, cl]
 
 		# Total cash flow
-		total_interest = self.classes_interest_cf.sum(1)
-		self.total_cf = self.classes_principal + self.classes_interest_cf
-		coupon_differential = self.pool_summary['Total Principal'] + self.pool_summary['Interest Available to CMO'] - self.total_cf.iloc[:,0:-1].sum(axis=1)
-		self.total_cf['R'] = coupon_differential #+ self.total_cf.iloc[:,0:-1].sum(axis=1) * interest
+		total_interest = classes_interest_cf.sum(1)
+		total_cf = classes_principal + classes_interest_cf
+		coupon_differential = pool_summary['Total Principal'] + pool_summary['Interest Available to CMO'] - total_cf.iloc[:,0:-1].sum(axis=1)
+		total_cf['R'] = coupon_differential + total_cf.iloc[:,0:-1].sum(axis=1)*r[:total_cf.shape[0]]/12/2 # Quick approximation
+
+		return total_cf
+
+	def price_classes(self, total_cf, Z):
+
+		prices = np.zeros(len(self.classes))
+		m = total_cf.shape[0]
+		for cl_ind in range(len(self.classes)):
+			cashflows = np.array(total_cf.iloc[:, cl_ind])
+			prices[cl_ind] = np.sum(cashflows*Z[:m])
+		return prices
 
 
-
-	def price_classes(self, simulated_Z):
+	def price_classes_b(self, simulated_Z):
 		'''
 			Calculates prices of all classes given the simulated discount factors.
 		'''
@@ -211,14 +244,14 @@ class REMIC:
 
 		n = Z_up.shape[0]
 		simulated_prices = np.zeros((n, len(self.classes)))
-		m = self.total_cf.shape[0]
+		m = total_cf.shape[0]
 
 		for i in range(n):
 			Z_up_i = np.array(Z_up[i][:m])
 			Z_dn_i = np.array(Z_dn[i][:m])
 
 			for cl_ind in range(len(self.classes)):
-				cashflows = np.array(self.total_cf.iloc[:, cl_ind])
+				cashflows = np.array(total_cf.iloc[:, cl_ind])
 				simulated_prices[i, cl_ind] = (np.sum(cashflows*Z_up_i) + np.sum(cashflows*Z_dn_i))/2
 
 		summary_np = np.zeros((2,len(self.classes)))
@@ -238,9 +271,9 @@ class REMIC:
 			Continuous compounding.
 			cl is the class
 		'''
-		m = self.total_cf.shape[0]
+		m = total_cf.shape[0]
 		Z = np.exp(-y*np.arange(1, m+1)*dt)
-		cashflows = np.array(self.total_cf.loc[:, cl])
+		cashflows = np.array(total_cf.loc[:, cl])
 		price = np.sum(cashflows*Z)
 		return price
 
@@ -298,7 +331,7 @@ class REMIC:
 		oas_summary_np = summary_np = np.zeros((1,len(self.classes)))
 		for cl_ind in range(len(self.classes)):
 			oas = 0.0
-			cashflows = np.array(self.total_cf.iloc[:, cl_ind])
+			cashflows = np.array(total_cf.iloc[:, cl_ind])
 			par = self.classes_balance.iloc[0, cl_ind]
 			optimum = minimize(self.to_minimize_oas, x0 = [oas] , args = (simulated_rates_avg, cashflows,par))
 			oas_summary_np[0, cl_ind] = optimum.x

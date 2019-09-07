@@ -76,7 +76,7 @@ class FixedIncome:
 			return self.hull_white_B(tau, T, kappa)*self.hull_white_theta(tau, dt, theta)
 
 		dt = 1/12
-		I = quad(hull_white_integrand, t, T, args=(dt, theta, kappa))[0]
+		I = quad(hull_white_integrand, t, T, args=(dt, theta, kappa), limit=500)[0]
 		A = -I + (sigma**2 / (2.0*kappa**2))*(T - t + (1.0 - np.exp(-2.0*kappa*(T - t)))/(2.0*kappa) - 2.0*B)
 		return (A, B)
 
@@ -118,9 +118,9 @@ class FixedIncome:
 			Calculate discount factors from interest rate path.
 			Makes slight simplification of assuming constant rate for every dt.
 		'''
-		n = r_A.shape[0]
-		r_up = r_A[:n]
-		r_dn = r_A[(n+1):]
+		nh = int(r_A.shape[0]/2)
+		r_up = r_A[:nh]
+		r_dn = r_A[nh:]
 
 		Z_up = np.exp(-1*r_up*dt)
 		Z_dn = np.exp(-1*r_dn*dt)
