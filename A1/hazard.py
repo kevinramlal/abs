@@ -129,8 +129,10 @@ class Hazard:
 		for i in range(len(self.theta)-2):
 			param_names += ['beta_'+str(i+1)]
 		param_df.index = param_names
-		print('\nPart a:\n\n' + str(param_df))
-		#print('\n' + laself.t_allx_table(param_df, caption="Non-time varying hazard model estimaself.t_alls.", label="a_estimaself.t_alls", index=True))
+
+		if self.show_prints:
+			print('\nPart a:\n\n' + str(param_df) + '\n')
+			#print('\n' + laself.t_allx_table(param_df, caption="Non-time varying hazard model estimaself.t_alls.", label="a_estimaself.t_alls", index=True))
 
 
 	def baseline_hazard(self, t):
