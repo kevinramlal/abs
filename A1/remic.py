@@ -60,7 +60,9 @@ class REMIC:
 		Nh = int(N/2)
 		prices_all = np.zeros((N, len(self.classes)))
 		prices_paired = np.zeros((Nh, len(self.classes)))
-		avg_cf = np.zeros((self.maturity+1,len(self.classes)))
+		avg_cf = np.zeros((self.maturity,len(self.classes)))
+		oas_class = 'CA'
+		oas_class_cf = np.zeros((N, self.maturity))
 		for n in range(N):
 			print("Simulation: " + str(n+1) + "/" + str(N))
 			r_n = self.simulated_rates[n]
@@ -68,6 +70,7 @@ class REMIC:
 			SMM_n = [SMM[i][n] for i in range(self.n_pools)]
 			pool_summary_n = self.calculate_pool_cf(SMM_n)
 			total_cf = self.calculate_classes_cf(pool_summary_n, r_n)
+			oas_class_cf[n] = total_cf[oas_class]
 			avg_cf = avg_cf + total_cf
 			prices_all[n] = self.price_classes(total_cf, Z_n)
 		avg_cf = avg_cf/N
@@ -102,15 +105,22 @@ class REMIC:
 		# OAS
 		#---------------------------
 
-		cl = 'CA'
-		par_value = self.classes_info.loc[cl, 'Original Balance']
+		dt = 1/12
+		par_value = self.classes_info.loc[oas_class, 'Original Balance']
+		# Spot rates are continously compounded. 
+		# Accoding to the lectures, OAS is the spread using monthly compounding. 
+		monthly_compounded_rates = np.exp(self.simulated_rates*dt)-1
+		T = self.maturity
+		oas = self.calculate_OAS(par_value, oas_class_cf[:Nh,:T], monthly_compounded_rates[:Nh,:T])
+
+		if self.show_prints:
+			print("\nPart G:\nOAS for " + str(oas_class) + " = " + str(oas*100) + '%\n')
 
 
 		#---------------------------
 		# Hazard Rate
 		#---------------------------
 
-		print(SMM[0])
 		avg_hz = np.mean(SMM[0], axis=0)
 
 		if self.show_plots:
@@ -203,7 +213,10 @@ class REMIC:
 			self.principal_groups_proportions[group] = float(self.principal_groups_proportions[group])/total_balance
 
 	def calculate_classes_cf(self, pool_summary, r):
-		#calculated cashflow of all bonds given the simulated interest rates
+		'''
+			Calculates cash flows of all bonds given the simulated interest rates.
+			First cash flow starting at month 1.
+		'''
 		columns = self.classes
 		classes_balance = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
 		classes_interest = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
@@ -263,7 +276,7 @@ class REMIC:
 		coupon_differential = pool_summary['Total Principal'] + pool_summary['Interest Available to CMO'] - total_cf.iloc[:,0:-1].sum(axis=1)
 		total_cf['R'] = coupon_differential + total_cf.iloc[:,0:-1].sum(axis=1)*r[:total_cf.shape[0]]/12/2 # Quick approximation
 
-		return total_cf
+		return total_cf.iloc[1:,:]
 
 	def price_classes(self, total_cf, Z):
 
@@ -323,13 +336,23 @@ class REMIC:
 
 		return dur_conv
 
-	def to_minimize_oas(self, params, sim_avg_rates, cfs,par):
-		oas = params[0]
-		res = 0
-		dts = np.array([ i*1/12 for i in range(len(cfs))])
-		dcfs = np.multiply(np.exp(-1*np.multiply(sim_avg_rates[:len(cfs)] + oas, dts)), cfs)
-		res = np.abs(par- np.sum(dcfs))
-		return res
+	def to_minimize_oas(self, spread, par_value, oas_class_cf, monthly_compounded_rates):
+
+		# Discount factors
+		Z = 1/(1 + monthly_compounded_rates + spread)
+		for i in range(1, Z.shape[1]):
+			Z[:, i] = Z[:, i-1]*Z[:, i]
+
+		# Price
+		discounted_cf = np.multiply(oas_class_cf, Z)
+		price = np.mean(np.sum(discounted_cf, axis=1))
+
+		return (price - par_value)**2
+
+	def calculate_OAS(self, par_value, oas_class_cf, monthly_compounded_rates):
+		res =  minimize(self.to_minimize_oas, x0 = 0 , args = (par_value, oas_class_cf, monthly_compounded_rates))
+		oas = res.x[0]
+		return oas
 
 	def find_oas_classes(self, simulated_rates_avg):
 		oas_summary_np = summary_np = np.zeros((1,len(self.classes)))
