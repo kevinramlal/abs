@@ -17,9 +17,12 @@ register_matplotlib_converters()
 # Custom made classes
 import fixed_income
 from utilities import *
-
+import os
+# print(os.path.dirname(__file__))
 
 class Homework1:
+
+    
 
     def __init__(self, show_prints=False, show_plots=False):
         self.show_prints = show_prints
@@ -27,25 +30,25 @@ class Homework1:
         self.fi = fixed_income.FixedIncome()
 
     def fit_term_structure_model(self):
-
+        home_dir = os.path.dirname(__file__)
 
         #-----------------------------------------------------------------
         # Importing Data and Calibrating Data
         #-----------------------------------------------------------------
 
-        fwds = pd.read_csv('fwds_20040830.csv',header = None, names = ['Fwds'])
-        zero = pd.read_csv('zero_rates_custom.csv',header = None, names = ['Zero'])
+        fwds = pd.read_csv(home_dir + "/fwds_20040830.csv",header = None, names = ['Fwds'])
+        zero = pd.read_csv(home_dir +'/zero_rates_custom.csv',header = None, names = ['Zero'])
 
         zr = np.array(zero['Zero'])
         zr_temp = np.append([None],zr) #Need to have initial value of None since dates start at 9_01_2004
         self.master_rates = pd.DataFrame()
         self.master_rates['Zero'] = zr_temp
 
-        atm_cap = pd.read_csv('atm_cap.csv', header = None) #extracted from 20040830_usd23_atm_caps file
+        atm_cap = pd.read_csv(home_dir +'/atm_cap.csv', header = None) #extracted from 20040830_usd23_atm_caps file
         atm_cap.columns = ['Maturity', 'Black Imp Vol']
 
         #Import Expiry, Settlement Date column and format as datetime
-        dates_all = pd.read_csv('dates_expiry_settle.csv',dtype = str) #from Bloomberg files USD23 tab
+        dates_all = pd.read_csv(home_dir +'/dates_expiry_settle.csv',dtype = str) #from Bloomberg files USD23 tab
         dates = pd.to_datetime(dates_all['Settlement Date']) #settlement dates
         dates.columns = ['Date']
 
@@ -331,11 +334,26 @@ class Homework1:
         #plt.show()
 
 
-
     def simulate_interest_rates(self, n):
+        # The subscript _A denotes that is a tuple containing antithetic paths in each of the two positions
         dt = 1/12
         r0 = self.fi.hull_white_instantaneous_spot_rate(0, 3*dt, self.master_rates.loc[1, 'Discount'], self.theta, self.kappa, self.sigma)
-        simulated_rates = self.fi.hull_white_simulate_rates_antithetic(n, r0, dt, self.theta, self.kappa, self.sigma)
-        simulated_Z = self.fi.hull_white_discount_factors_antithetic_GSI_version(simulated_rates, dt)
-        return (simulated_rates, simulated_Z)
+        simulated_rates_A = self.fi.hull_white_simulate_rates_antithetic(n, r0, dt, self.theta, self.kappa, self.sigma)
+        simulated_Z_A = self.fi.hull_white_discount_factors_antithetic_path(simulated_rates_A, dt)
+        return (simulated_rates_A, simulated_Z_A)
+
+    def calculate_T_year_rate_APR(self, r_A, lag, horizon, previous_rates):
+        '''
+            Intended to return the 10-year Treasury rate at the end of every pool with a lag of 3 months (horizon is 10).
+            Returns a list where in each position (corresponding to each ending month in end) has a tupple with the (antithetic) APR
+            r_A contains antithetic simulations of the instantaneous spot rate.
+            lag is the lag in months.
+            T is the horizon in years of the period to get the APR.
+        '''
+        n = r_A.shape[0]
+        Z_A = self.fi.hull_white_discount_factor(r_A, 0, horizon, self.theta, self.kappa, self.sigma)
+        r_APR = 12*((1/Z_A)**(1/(12*horizon)) - 1)
+        r_APR[:, lag:] = r_APR[:, :-lag]
+        r_APR[:, :lag] = np.array(previous_rates[-lag:])
+        return r_APR
 
