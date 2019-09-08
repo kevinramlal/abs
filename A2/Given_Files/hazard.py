@@ -256,9 +256,8 @@ class Hazard:
 			self.theta = theta
 		N = len(self.data['id_loan'].unique())
 		hess_inv_N = result_min.hess_inv.todense()/N
-		se = np.zeros(len(self.theta))
-		for i in range(len(hess_inv_N)):
-			se[i] = np.sqrt(hess_inv_N[i,i])
+		se = np.array([hess_inv_N[1,1],hess_inv_N[0,0],hess_inv_N[2,2],hess_inv_N[3,3]])
+
 
 		param_df = pd.DataFrame(self.theta, columns=['Value'])
 		param_df['Std. Error'] = se
