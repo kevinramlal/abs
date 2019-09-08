@@ -162,8 +162,8 @@ class Hazard:
 
 	#This function is based on the matlab function provided on bcourses
 	def log_log_grad(self, param):
-	    g = param[0] #Gamma
-	    p = param[1]
+	    g = param[1] #Gamma
+	    p = param[0]
 	    coef = param[2:] #beta
 
 	    dlldg1 = np.sum(self.event*(p/g - (p*(g**(p-1))*(self.t_all**p))/(1+(g*self.t_all)**p)))
@@ -253,7 +253,7 @@ class Hazard:
 	def param_estimate_dynamic(self):
 		bounds = ((0,np.inf),(0.00001,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
 		phist = [0.2,0.5,1,0.1]
-		cnt = 0
+
 		result_min = minimize(self.log_log_like,phist,jac=self.log_log_grad, tol=1e-7, bounds=bounds)
 		self.theta = result_min.x
 		N = len(self.data['id_loan'].unique())
