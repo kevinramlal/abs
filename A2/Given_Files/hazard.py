@@ -212,15 +212,13 @@ class Hazard:
 
 	def log_log_like(self, param):
 
-	    global phist
-	    global cnt
 
 	    #% Get the number of parameters
 	    nparams  = len(param)
 	    nentries = len(self.t_all)
 
-	    g = param[1]         #% Amplitude of the baseline hazard; gamma in the notation
-	    p = param[0]         #% Shape of baseline hazard; p in the notation
+	    g = param[0]         #% Amplitude of the baseline hazard; gamma in the notation
+	    p = param[1]         #% Shape of baseline hazard; p in the notation
 	    coef = param[2:]  #% Coefficients for covariates; beta in the notation
 
 	    #% The following variables are vectors with a row for each episode
@@ -243,21 +241,17 @@ class Hazard:
 		#     % provide these derivatives so that the search algogrithm knows which direction
 		#     % to search in.
 
-	    #grad = log_log_grad(param, self.t_b, self.t_all, self.event, self.covars_all)
-
-	    #% matrix phist keeps track of parameter convergence history
-
-	    #return  np.append(logL, grad)
 	    return logL
 
 	def param_estimate_dynamic(self,optimize_flag = True,theta = []):
-		bounds = ((0,np.inf),(0.00001,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
+		bounds = ((0.00001,np.inf),(0.00001,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
 		phist = [0.2,0.5,1,0.1]
-		cnt = 0
+
 		if optimize_flag:
 			print("Starting Part D Optimization....")
 			result_min = minimize(self.log_log_like,phist,jac=self.log_log_grad, tol=1e-7, bounds=bounds)
-			self.theta = result_min.x
+			self.theta = np.array([result_min.x[1],result_min.x[0],result_min.x[2],result_min.x[3]])
+
 		else:
 			self.theta = theta
 		N = len(self.data['id_loan'].unique())
