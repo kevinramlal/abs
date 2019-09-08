@@ -12,7 +12,7 @@ class Hazard:
 		Calibraself.t_alls hazard models.
 	'''
 
-	def __init__(self, data, prepay_col, end_col, beg_col, end_max, cov_cols, show_prints=False, show_plots=False):
+	def __init__(self, data, prepay_col, end_col, beg_col, end_max, cov_cols, tables_file, show_prints=False, show_plots=False):
 		'''
 			prepay_col: String indicating name of column data DataFrame with a 1 if there was prepay and 0 if not.
 			end_col: String indicating name of column in data DataFrame with the month the mortgage ended.
@@ -25,6 +25,7 @@ class Hazard:
 		self.beg_col = beg_col
 		self.end_max = end_max
 		self.cov_cols = cov_cols
+		self.tables_file = tables_file
 		self.show_prints = show_prints
 		self.show_plots = show_plots
 
@@ -130,9 +131,8 @@ class Hazard:
 		param_df.index = param_names
 
 		if self.show_prints:
-			print('\nPart A:\n' + str(param_df) + '\n')
-			#print('\n' + laself.t_allx_table(param_df, caption="Non-time varying hazard model estimaself.t_alls.", label="a_estimaself.t_alls", index=True))
-
+			print('\nPart A:\n' + str(param_df) + '\n\n')
+			self.tables_file.write(latex_table(param_df, caption="Non-time varying hazard model estimates.", label="a_estimates", index=True))
 
 	def baseline_hazard(self, t):
 		p = self.theta[0] # p in notation
@@ -267,4 +267,4 @@ class Hazard:
 		param_df.index = param_names
 
 		if self.show_prints:
-			print('\nPart D:\n' + str(param_df) + '\n')
+			print('\nPart D:\n' + str(param_df) + '\n\n')
