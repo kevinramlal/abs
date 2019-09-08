@@ -219,8 +219,8 @@ class Hazard:
 	    nparams  = len(param)
 	    nentries = len(self.t_all)
 
-	    g = param[0]         #% Amplitude of the baseline hazard; gamma in the notation
-	    p = param[1]         #% Shape of baseline hazard; p in the notation
+	    g = param[1]         #% Amplitude of the baseline hazard; gamma in the notation
+	    p = param[0]         #% Shape of baseline hazard; p in the notation
 	    coef = param[2:]  #% Coefficients for covariates; beta in the notation
 
 	    #% The following variables are vectors with a row for each episode
@@ -246,22 +246,28 @@ class Hazard:
 	    #grad = log_log_grad(param, self.t_b, self.t_all, self.event, self.covars_all)
 
 	    #% matrix phist keeps track of parameter convergence history
-	    if cnt%(nparams+1) == 0:
-	        phist = np.append([phist,param])
-
-	    cnt = cnt+1
 
 	    #return  np.append(logL, grad)
 	    return logL
 
 	def param_estimate_dynamic(self):
-		bounds = ((0.00001,np.inf),(0,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
+		bounds = ((0,np.inf),(0.00001,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
 		phist = [0.2,0.5,1,0.1]
 		cnt = 0
-		result_min = minimize(log_log_like,phist,args = (self.t_b,self.t_all,self.event,self.covars_all),jac=log_log_grad, tol=1e-7, bounds=bounds)
+		result_min = minimize(self.log_log_like,phist,jac=self.log_log_grad, tol=1e-7, bounds=bounds)
 		self.theta = result_min.x
 		N = len(self.data['id_loan'].unique())
 		hess_inv_N = result_min.hess_inv.todense()/N
-		self.theta_se = np.zeros(len(params))
+		se = np.zeros(len(self.theta))
 		for i in range(len(hess_inv_N)):
-		    self.theta_se[i] = np.sqrt(hess_inv_N[i,i])
+			se[i] = np.sqrt(hess_inv_N[i,i])
+
+		param_df = pd.DataFrame(self.theta, columns=['Value'])
+		param_df['Std. Error'] = se
+		param_names = ['p', 'gamma']
+		for i in range(len(self.theta)-2):
+			param_names += ['beta_'+str(i+1)]
+		param_df.index = param_names
+
+		if self.show_prints:
+			print('\nPart D:\n' + str(param_df) + '\n')
