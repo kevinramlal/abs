@@ -45,7 +45,11 @@ hw_remic.simulation_result(hz, simulated_lagged_10_year_rates_A, 'B','C', 'Stati
 hz_dynamic_data = pd.read_csv('./Given_Files/dynamic.csv', thousands=',')
 
 hz_dynamic = hazard.Hazard(hz_dynamic_data, prepay_col="prepay", end_col="period_end", beg_col="period_begin", end_max=60, cov_cols=["cpn_gap", "summer"], show_prints=True, show_plots=False)
-hz_dynamic.param_estimate_dynamic()
+hz_dynamic.param_estimate_dynamic() #Do optimization 
+
+#Uncomment this next line to run without optimization, uses pre-optimized params
+
+#hz_dynamic.param_estimate_dynamic(optimize_flag = False, theta = [])
 
 #part e&f
 hw_remic.simulation_result(hz_dynamic, simulated_lagged_10_year_rates_A, 'E','F', 'Dyanamic Data')
