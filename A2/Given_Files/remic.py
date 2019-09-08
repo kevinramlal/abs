@@ -49,7 +49,7 @@ class REMIC:
 		self.calculate_pool_groups_proportions()
 
 
-	def simulation_result(self, hazard_model, simulated_lagged_10_year_rates_A):
+	def simulation_result(self, hazard_model, simulated_lagged_10_year_rates_A,part_price,part_convexity,data_type):
 
 		#---------------------------
 		# Cashflows and Prices
@@ -88,7 +88,7 @@ class REMIC:
 		self.simulation_summary.index = self.classes
 
 		if self.show_prints:
-			print('\nPart B:\n' + str(self.simulation_summary) + '\n')
+			print('\nPart '+ part_price + ':\n' + str(self.simulation_summary) + '\n')
 			#print(latex_table(self.simulation_summary, caption = "Simulation summary", label = "prices", index = True))
 
 		#---------------------------
@@ -98,7 +98,7 @@ class REMIC:
 		dur_conv = self.calculate_durations_and_convexities(avg_cf, dr=0.0001, dt=1/12)
 
 		if self.show_prints:
-			print("\nPart C:\n" + str(dur_conv) + '\n')
+			print('\nPart '+ part_convexity + ':\n' + str(dur_conv) + '\n')
 			#print(latex_table(dur_conv, caption = "Duration and Convexity", label = "duration", index = True))
 
 		#---------------------------
@@ -107,14 +107,14 @@ class REMIC:
 
 		dt = 1/12
 		par_value = self.classes_info.loc[oas_class, 'Original Balance']
-		# Spot rates are continously compounded. 
-		# Accoding to the lectures, OAS is the spread using monthly compounding. 
+		# Spot rates are continously compounded.
+		# Accoding to the lectures, OAS is the spread using monthly compounding.
 		monthly_compounded_rates = np.exp(self.simulated_rates*dt)-1
 		T = self.maturity
 		oas = self.calculate_OAS(par_value, oas_class_cf[:Nh,:T], monthly_compounded_rates[:Nh,:T])
 
 		if self.show_prints:
-			print("\nPart G:\nOAS for " + str(oas_class) + " = " + str(oas*100) + '%\n')
+			print("\nPart G w/ " + data_type + ":\nOAS for " + str(oas_class) + " = " + str(oas*100) + '%\n')
 
 
 		#---------------------------
@@ -145,8 +145,8 @@ class REMIC:
 		summer = np.array([1 if i>=5 and i<=8 else 0 for i in month_index])
 
 		# Coupon gap
-		cpn_gap = [] 
-		# cpn_gap is a list of numpy arrays containing the coupon gap for every simulation and month. 
+		cpn_gap = []
+		# cpn_gap is a list of numpy arrays containing the coupon gap for every simulation and month.
 		# The list has one numpy array for each pool.
 		# Every row indicates a simulation and every column a month.
 		for pool_index in range(self.n_pools):
@@ -353,5 +353,3 @@ class REMIC:
 		res =  minimize(self.to_minimize_oas, x0 = 0 , args = (par_value, oas_class_cf, monthly_compounded_rates))
 		oas = res.x[0]
 		return oas
-
-
