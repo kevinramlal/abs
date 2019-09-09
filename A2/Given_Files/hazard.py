@@ -243,28 +243,43 @@ class Hazard:
 
 	    return logL
 
-	def param_estimate_dynamic(self,optimize_flag = True,theta = []):
+	def param_hessian(self):
+		eps = 1e-4
+		k = 2 + len(self.cov_cols)
+		hess = np.zeros((k,k))
+		for i in range(k):
+			theta_up = np.copy(self.theta)
+			theta_dn = np.copy(self.theta)
+			theta_up[i] = theta_up[i] + eps
+			theta_dn[i] = theta_dn[i] - eps
+			grad_up = self.log_log_grad(theta_up)
+			grad_dn = self.log_log_grad(theta_dn)
+			hess[i] = (grad_up-grad_dn)/(2*eps)
+		return hess
+
+	def param_estimate_dynamic(self,optimize_flag = True, theta = []):
 		bounds = ((0.00001,np.inf),(0.00001,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
 		phist = [0.2,0.5,1,0.1]
+		N = len(self.data['id_loan'].unique())
 
 		if optimize_flag:
-			print("Starting Part D Optimization....")
+			print("Starting Part D Optimization...")
 			result_min = minimize(self.log_log_like,phist,jac=self.log_log_grad, tol=1e-7, bounds=bounds)
 			self.theta = np.array([result_min.x[1],result_min.x[0],result_min.x[2],result_min.x[3]])
+			hess_inv_N = result_min.hess_inv.todense()/N
+			se = np.array([hess_inv_N[1,1],hess_inv_N[0,0],hess_inv_N[2,2],hess_inv_N[3,3]])
 
+
+			param_df = pd.DataFrame(self.theta, columns=['Value'])
+			param_df['Std. Error'] = se
+			param_names = ['p', 'gamma']
+			for i in range(len(self.theta)-2):
+				param_names += ['beta_'+str(i+1)]
+			param_df.index = param_names
+
+			if self.show_prints:
+				print('\nPart D:\n' + str(param_df) + '\n\n')
+				self.tables_file.write(latex_table(param_df, caption="Time varying hazard model estimates.", label="d_estimates", index=True))
 		else:
 			self.theta = theta
-		N = len(self.data['id_loan'].unique())
-		hess_inv_N = result_min.hess_inv.todense()/N
-		se = np.array([hess_inv_N[1,1],hess_inv_N[0,0],hess_inv_N[2,2],hess_inv_N[3,3]])
 
-
-		param_df = pd.DataFrame(self.theta, columns=['Value'])
-		param_df['Std. Error'] = se
-		param_names = ['p', 'gamma']
-		for i in range(len(self.theta)-2):
-			param_names += ['beta_'+str(i+1)]
-		param_df.index = param_names
-
-		if self.show_prints:
-			print('\nPart D:\n' + str(param_df) + '\n\n')
