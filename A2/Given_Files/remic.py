@@ -17,7 +17,7 @@ class REMIC:
 		Values REMIC bonds and calculates relevant metrics.
 	'''
 
-	def __init__(self, start_date, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates, simulated_Z, show_prints=False, show_plots=False):
+	def __init__(self, start_date, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates, simulated_Z, tables_file, show_prints=False, show_plots=False):
 		# Direct inputs
 		self.start_date = datetime.strptime(start_date, "%m/%d/%Y")
 		self.first_payment_date = datetime.strptime(first_payment_date, "%m/%d/%Y")
@@ -30,6 +30,7 @@ class REMIC:
 		self.simulated_Z = simulated_Z
 		self.show_prints = show_prints
 		self.show_plots = show_plots
+		self.tables_file = tables_file
 
 		# Processed attributes
 		self.maturity = np.max(self.pools_info['Term'])
@@ -88,8 +89,8 @@ class REMIC:
 		self.simulation_summary.index = self.classes
 
 		if self.show_prints:
-			print('\nPart '+ part_price + ':\n' + str(self.simulation_summary) + '\n')
-			#print(latex_table(self.simulation_summary, caption = "Simulation summary", label = "prices", index = True))
+			print('\nPart '+ part_price + ':\n' + str(self.simulation_summary) + '\n\n')
+			self.tables_file.write(latex_table(self.simulation_summary, caption = "Simulation summary", label = "prices", index = True))
 
 		#---------------------------
 		# Duration and Convexity
@@ -98,8 +99,8 @@ class REMIC:
 		dur_conv = self.calculate_durations_and_convexities(avg_cf, dr=0.0001, dt=1/12)
 
 		if self.show_prints:
-			print('\nPart '+ part_convexity + ':\n' + str(dur_conv) + '\n')
-			#print(latex_table(dur_conv, caption = "Duration and Convexity", label = "duration", index = True))
+			print('\nPart '+ part_convexity + ':\n' + str(dur_conv) + '\n\n')
+			self.tables_file.write(latex_table(dur_conv, caption = "Duration and Convexity", label = "duration", index = True))
 
 		#---------------------------
 		# OAS
@@ -114,7 +115,7 @@ class REMIC:
 		oas = self.calculate_OAS(par_value, oas_class_cf[:Nh,:T], monthly_compounded_rates[:Nh,:T])
 
 		if self.show_prints:
-			print("\nPart G w/ " + data_type + ":\nOAS for " + str(oas_class) + " = " + str(oas*100) + '%\n')
+			print("\nPart G w/ " + data_type + ":\nOAS for " + str(oas_class) + " = " + str(oas*100) + '%\n\n')
 
 
 		#---------------------------
@@ -123,10 +124,11 @@ class REMIC:
 
 		avg_hz = np.mean(SMM[0], axis=0)
 
+		plt.plot(avg_hz)
+		plt.xlabel("Months")
+		plt.ylabel("Average Hazard Rate")
+		plt.savefig('Results/1g_hazard_plot_'+data_type+'.eps', format='eps')
 		if self.show_plots:
-			plt.plot(avg_hz)
-			plt.xlabel("Months")
-			plt.ylabel("Average Hazard Rate")
 			plt.show()
 
 
@@ -274,7 +276,7 @@ class REMIC:
 		total_interest = classes_interest_cf.sum(1)
 		total_cf = classes_principal + classes_interest_cf
 		coupon_differential = pool_summary['Total Principal'] + pool_summary['Interest Available to CMO'] - total_cf.iloc[:,0:-1].sum(axis=1)
-		total_cf['R'] = coupon_differential + total_cf.iloc[:,0:-1].sum(axis=1)*r[:total_cf.shape[0]]/12/2 # Quick approximation
+		total_cf['R'] = coupon_differential + total_cf.iloc[:,0:-1].sum(axis=1)*((1+r[:total_cf.shape[0]]/12)**(0.5)-1)
 
 		return total_cf.iloc[1:,:]
 

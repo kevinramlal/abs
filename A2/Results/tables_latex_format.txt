@@ -1,0 +1,61 @@
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrr}
+\toprule
+{} &     Value &  Std. Error \\
+\midrule
+p      &  2.153520 &    0.000134 \\
+gamma  &  0.039775 &    0.000004 \\
+beta\_1 &  0.224783 &    0.000135 \\
+beta\_2 & -2.405998 &    0.000153 \\
+\bottomrule
+\end{tabular}
+\caption{Non-time varying hazard model estimates.}
+\label{tab:a_estimates}
+\end{table}
+
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+{} &  Average price &  Standard Deviation &  Standard error \\
+\midrule
+CA &   3.381405e+07 &           19.784367 &        6.256366 \\
+CG &   7.712602e+07 &           11.223132 &        3.549066 \\
+CM &   1.469061e+07 &            6.355760 &        2.009868 \\
+CY &   1.441344e+07 &           56.004921 &       17.710311 \\
+CZ &   2.432335e+07 &          113.599386 &       35.923280 \\
+GZ &   2.327394e+07 &           54.825171 &       17.337241 \\
+TC &   2.113104e+07 &           96.616361 &       30.552776 \\
+VE &   5.399077e+06 &            1.021810 &        0.323125 \\
+R  &   3.568731e+05 &            2.706664 &        0.855922 \\
+\bottomrule
+\end{tabular}
+\caption{Simulation summary}
+\label{tab:prices}
+\end{table}
+
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+{} &    Yields &  Duration &   Convexity \\
+\midrule
+CA &  0.028680 &  1.806590 &    4.286969 \\
+CG &  0.024796 &  1.224217 &    1.830974 \\
+CM &  0.029355 &  2.346434 &    5.723145 \\
+CY &  0.045108 &  6.865172 &   63.720771 \\
+CZ &  0.048527 &  9.782157 &  108.041734 \\
+GZ &  0.032972 &  3.327131 &   11.197956 \\
+TC &  0.037104 &  4.310718 &   20.161230 \\
+VE &  0.027299 &  1.668883 &    3.338589 \\
+R  &  0.041347 &  4.339911 &   34.151480 \\
+\bottomrule
+\end{tabular}
+\caption{Duration and Convexity}
+\label{tab:duration}
+\end{table}
+
