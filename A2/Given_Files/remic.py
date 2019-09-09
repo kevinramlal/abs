@@ -7,6 +7,7 @@ from scipy.optimize import fsolve
 from datetime import datetime
 import time
 import sys
+import fixed_income
 from utilities import *
 
 import warnings
@@ -17,7 +18,7 @@ class REMIC:
 		Values REMIC bonds and calculates relevant metrics.
 	'''
 
-	def __init__(self, start_date, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates, simulated_Z, tables_file, show_prints=False, show_plots=False):
+	def __init__(self, start_date, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates, tables_file, show_prints=False, show_plots=False):
 		# Direct inputs
 		self.start_date = datetime.strptime(start_date, "%m/%d/%Y")
 		self.first_payment_date = datetime.strptime(first_payment_date, "%m/%d/%Y")
@@ -27,10 +28,10 @@ class REMIC:
 		self.principal_sequential_pay = principal_sequential_pay
 		self.accruals_sequential_pay = accruals_sequential_pay
 		self.simulated_rates = simulated_rates
-		self.simulated_Z = simulated_Z
 		self.show_prints = show_prints
 		self.show_plots = show_plots
 		self.tables_file = tables_file
+		self.fi = fixed_income.FixedIncome()
 
 		# Processed attributes
 		self.maturity = np.max(self.pools_info['Term'])
@@ -56,25 +57,72 @@ class REMIC:
 		# Cashflows and Prices
 		#---------------------------
 
-		SMM = self.calculate_pool_simulation_prepayment(hazard_model, simulated_lagged_10_year_rates_A)
+		simulation_summary = self.calculate_price(hazard_model, simulated_lagged_10_year_rates_A, dr=0)
+
+		if self.show_prints:
+			print('\nPart '+ part_price + ':\n' + str(simulation_summary) + '\n\n')
+			self.tables_file.write(latex_table(simulation_summary, caption = "Simulation summary", label = "prices", index = True))
+
+		#---------------------------
+		# Duration and Convexity
+		#---------------------------
+
+		dur_conv = self.calculate_durations_and_convexities(simulation_summary, hazard_model, simulated_lagged_10_year_rates_A, dr=0.0001, dt=1/12)
+
+		if self.show_prints:
+			print('\nPart '+ part_convexity + ':\n' + str(dur_conv) + '\n\n')
+			self.tables_file.write(latex_table(dur_conv, caption = "Duration and Convexity", label = "duration", index = True))
+
+		#---------------------------
+		# OAS
+		#---------------------------
+
+		oas_class = "CA"
+		oas = self.calculate_OAS(oas_class, hazard_model, simulated_lagged_10_year_rates_A)
+
+		if self.show_prints:
+			print("\nPart G w/ " + data_type + ":\nOAS for " + str(oas_class) + " = " + str(oas*100) + '%\n\n')
+
+
+		#---------------------------
+		# Hazard Rate
+		#---------------------------
+
+		#avg_hz = np.mean(SMM[0], axis=0)
+
+		#plt.plot(avg_hz)
+		#plt.xlabel("Months")
+		#plt.ylabel("Average Hazard Rate")
+		#plt.savefig('Results/1g_hazard_plot_'+data_type+'.eps', format='eps')
+		#if self.show_plots:
+		#	plt.show()
+		#else:
+		#	plt.cla()
+
+	def calculate_price(self, hazard_model, simulated_lagged_10_year_rates_A, dr=0):
+		'''
+			Calculates the average simulated price.
+			Allows parallel shocks in interest rates with dr.
+			cap_sim caps the number of simulations to be used.
+		'''
+
+		SMM = self.calculate_pool_simulation_prepayment(hazard_model, simulated_lagged_10_year_rates_A + dr)
 		N = simulated_lagged_10_year_rates_A.shape[0]
 		Nh = int(N/2)
 		prices_all = np.zeros((N, len(self.classes)))
 		prices_paired = np.zeros((Nh, len(self.classes)))
-		avg_cf = np.zeros((self.maturity,len(self.classes)))
-		oas_class = 'CA'
-		oas_class_cf = np.zeros((N, self.maturity))
+
+		r = self.simulated_rates + dr
+		Z = self.fi.hull_white_discount_factors_antithetic_path(r, dt=1/12)
+
+		print("Calculating cash flows for each path...")
 		for n in range(N):
-			print("Simulation: " + str(n+1) + "/" + str(N))
-			r_n = self.simulated_rates[n]
-			Z_n = self.simulated_Z[n]
 			SMM_n = [SMM[i][n] for i in range(self.n_pools)]
+			r_n = r[n]
+			Z_n = Z[n]
 			pool_summary_n = self.calculate_pool_cf(SMM_n)
 			total_cf = self.calculate_classes_cf(pool_summary_n, r_n)
-			oas_class_cf[n] = total_cf[oas_class]
-			avg_cf = avg_cf + total_cf
 			prices_all[n] = self.price_classes(total_cf, Z_n)
-		avg_cf = avg_cf/N
 
 		# Pair antithetic prices
 		for n in range(Nh):
@@ -85,53 +133,10 @@ class REMIC:
 		summary_np[1, :] = prices_paired.std(axis=0)
 		summary_np[2, :] = summary_np[1, :]/np.sqrt(Nh)
 
-		self.simulation_summary = pd.DataFrame(summary_np.T, columns = ['Average price', 'Standard Deviation', 'Standard error'])
-		self.simulation_summary.index = self.classes
+		simulation_summary = pd.DataFrame(summary_np.T, columns = ['Average Price', 'Std. Deviation', 'Std. Error'])
+		simulation_summary.index = self.classes
 
-		if self.show_prints:
-			print('\nPart '+ part_price + ':\n' + str(self.simulation_summary) + '\n\n')
-			self.tables_file.write(latex_table(self.simulation_summary, caption = "Simulation summary", label = "prices", index = True))
-
-		#---------------------------
-		# Duration and Convexity
-		#---------------------------
-
-		dur_conv = self.calculate_durations_and_convexities(avg_cf, dr=0.0001, dt=1/12)
-
-		if self.show_prints:
-			print('\nPart '+ part_convexity + ':\n' + str(dur_conv) + '\n\n')
-			self.tables_file.write(latex_table(dur_conv, caption = "Duration and Convexity", label = "duration", index = True))
-
-		#---------------------------
-		# OAS
-		#---------------------------
-
-		dt = 1/12
-		par_value = self.classes_info.loc[oas_class, 'Original Balance']
-		# Spot rates are continously compounded.
-		# Accoding to the lectures, OAS is the spread using monthly compounding.
-		monthly_compounded_rates = np.exp(self.simulated_rates*dt)-1
-		T = self.maturity
-		oas = self.calculate_OAS(par_value, oas_class_cf[:Nh,:T], monthly_compounded_rates[:Nh,:T])
-
-		if self.show_prints:
-			print("\nPart G w/ " + data_type + ":\nOAS for " + str(oas_class) + " = " + str(oas*100) + '%\n\n')
-
-
-		#---------------------------
-		# Hazard Rate
-		#---------------------------
-
-		avg_hz = np.mean(SMM[0], axis=0)
-
-		plt.plot(avg_hz)
-		plt.xlabel("Months")
-		plt.ylabel("Average Hazard Rate")
-		plt.savefig('Results/1g_hazard_plot_'+data_type+'.eps', format='eps')
-		if self.show_plots:
-			plt.show()
-
-
+		return simulation_summary
 
 	def calculate_pool_simulation_prepayment(self, hazard_model, simulated_lagged_10_year_rates_A):
 		'''
@@ -289,51 +294,26 @@ class REMIC:
 			prices[cl_ind] = np.sum(cashflows*Z[:m])
 		return prices
 
-	def calculate_price_given_yield(self, y, total_cf, cl, dt):
-		'''
-			Continuous compounding.
-			cl is the class
-		'''
-		m = total_cf.shape[0]
-		Z = np.exp(-y*np.arange(1, m+1)*dt)
-		cashflows = np.array(total_cf.loc[:, cl])
-		price = np.sum(cashflows*Z)
-		return price
+	def calculate_durations_and_convexities(self, simulation_summary, hazard_model,  simulated_lagged_10_year_rates_A, dr, dt):
 
-	def calculate_durations_and_convexities(self, total_cf, dr, dt):
+		simulation_summary_up = self.calculate_price(hazard_model, simulated_lagged_10_year_rates_A, dr=dr)
+		simulation_summary_dn = self.calculate_price(hazard_model, simulated_lagged_10_year_rates_A, dr=-dr)
 
-		def yield_auxiliary(y, *data):
-			cl, dt, price = data
-			price_y = self.calculate_price_given_yield(y, total_cf, cl, dt)
-			return price_y - price
-
-		y = np.zeros(len(self.classes))
 		dur = np.zeros(len(self.classes))
 		conv = np.zeros(len(self.classes))
-		for cl_ind in range(len(self.classes)):
 
-			cl = self.classes[cl_ind]
-			P = self.simulation_summary.loc[cl, 'Average price']
+		P = simulation_summary['Average Price']
+		P_up = simulation_summary_up['Average Price']
+		P_dn = simulation_summary_dn['Average Price']
 
-			# Yield
-			y[cl_ind] = fsolve(yield_auxiliary, self.pool_interest_rate, args = (cl, dt, P))
+		dur = (P_dn-P_up)/(P*2*dr)
+		conv = (P_dn+P_up-2*P)/(P*dr**2)
 
-			# Prices
-			P_up = self.calculate_price_given_yield(y[cl_ind] + dr, total_cf, cl, dt)
-			P_dn = self.calculate_price_given_yield(y[cl_ind] - dr, total_cf, cl, dt)
+		dur_conv = np.zeros((2,len(self.classes)))
+		dur_conv[0, :] = dur
+		dur_conv[1, :] = conv
 
-			# Duration
-			dur[cl_ind] = (P_dn-P_up)/(P*2*dr)
-
-			# Convexity
-			conv[cl_ind] = (P_dn+P_up-2*P)/(P*dr**2)
-
-		dur_conv = np.zeros((3,len(self.classes)))
-		dur_conv[0, :] = y
-		dur_conv[1, :] = dur
-		dur_conv[2, :] = conv
-
-		dur_conv = pd.DataFrame(dur_conv.T, columns = ['Yields', 'Duration', 'Convexity'])
+		dur_conv = pd.DataFrame(dur_conv.T, columns = ['Duration', 'Convexity'])
 		dur_conv.index = self.classes
 
 		return dur_conv
@@ -351,7 +331,31 @@ class REMIC:
 
 		return (price - par_value)**2
 
-	def calculate_OAS(self, par_value, oas_class_cf, monthly_compounded_rates):
+	def calculate_OAS(self, oas_class, hazard_model, simulated_lagged_10_year_rates_A):
+
+		T = self.maturity
+		N = simulated_lagged_10_year_rates_A.shape[0]
+		Nh = int(N/2)
+		dt = 1/12
+		par_value = self.classes_info.loc[oas_class, 'Original Balance']
+		# Spot rates are continously compounded.
+		# Accoding to the lectures, OAS is the spread using monthly compounding.
+		monthly_compounded_rates = np.exp(self.simulated_rates[:Nh, :T]*dt)-1
+
+		SMM = self.calculate_pool_simulation_prepayment(hazard_model, simulated_lagged_10_year_rates_A)
+		r = self.simulated_rates[:Nh]
+		Z = self.fi.hull_white_discount_factors_antithetic_path(r, dt=1/12)
+		oas_class_cf = np.zeros((Nh, self.maturity))
+
+		print("Calculating cash flows for each path...")
+		for n in range(Nh):
+			SMM_n = [SMM[i][n] for i in range(self.n_pools)]
+			r_n = r[n]
+			Z_n = Z[n]
+			pool_summary_n = self.calculate_pool_cf(SMM_n)
+			total_cf = self.calculate_classes_cf(pool_summary_n, r_n)
+			oas_class_cf[n] = total_cf[oas_class]
+
 		res =  minimize(self.to_minimize_oas, x0 = 0 , args = (par_value, oas_class_cf, monthly_compounded_rates))
 		oas = res.x[0]
 		return oas

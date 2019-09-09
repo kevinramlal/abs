@@ -124,6 +124,7 @@ class FixedIncome:
 
 		Z_up = np.exp(-1*r_up*dt)
 		Z_dn = np.exp(-1*r_dn*dt)
+
 		for i in range(1, Z_up.shape[1]):
 			Z_up[:, i] = Z_up[:, i-1]*Z_up[:, i]
 			Z_dn[:, i] = Z_dn[:, i-1]*Z_dn[:, i]

@@ -339,8 +339,8 @@ class Homework1:
         dt = 1/12
         r0 = self.fi.hull_white_instantaneous_spot_rate(0, 3*dt, self.master_rates.loc[1, 'Discount'], self.theta, self.kappa, self.sigma)
         simulated_rates_A = self.fi.hull_white_simulate_rates_antithetic(n, r0, dt, self.theta, self.kappa, self.sigma)
-        simulated_Z_A = self.fi.hull_white_discount_factors_antithetic_path(simulated_rates_A, dt)
-        return (simulated_rates_A, simulated_Z_A)
+        #simulated_Z_A = self.fi.hull_white_discount_factors_antithetic_path(simulated_rates_A, dt)
+        return simulated_rates_A
 
     def calculate_T_year_rate_APR(self, r_A, lag, horizon, previous_rates):
         '''
