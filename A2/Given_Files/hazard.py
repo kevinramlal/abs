@@ -243,20 +243,6 @@ class Hazard:
 
 	    return logL
 
-	def param_hessian(self):
-		eps = 1e-4
-		k = 2 + len(self.cov_cols)
-		hess = np.zeros((k,k))
-		for i in range(k):
-			theta_up = np.copy(self.theta)
-			theta_dn = np.copy(self.theta)
-			theta_up[i] = theta_up[i] + eps
-			theta_dn[i] = theta_dn[i] - eps
-			grad_up = self.log_log_grad(theta_up)
-			grad_dn = self.log_log_grad(theta_dn)
-			hess[i] = (grad_up-grad_dn)/(2*eps)
-		return hess
-
 	def param_estimate_dynamic(self,optimize_flag = True, theta = []):
 		bounds = ((0.00001,np.inf),(0.00001,np.inf),(-np.inf,np.inf),(-np.inf,np.inf))
 		phist = [0.2,0.5,1,0.1]
