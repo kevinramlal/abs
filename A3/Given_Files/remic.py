@@ -27,7 +27,8 @@ class REMIC:
 		self.classes_info = classes_info
 		self.principal_sequential_pay = principal_sequential_pay
 		self.accruals_sequential_pay = accruals_sequential_pay
-		self.simulated_rates = simulated_rates
+		self.simulated_rates_cont = simulated_rates
+		self.simulated_rates_APR = 12*(np.exp(simulated_rates*1/12)-1)*100 # Monthly APR in %
 		self.show_prints = show_prints
 		self.show_plots = show_plots
 		self.tables_file = tables_file
@@ -38,148 +39,193 @@ class REMIC:
 		self.n_pools = self.pools_info.shape[0]
 		self.classes = list(self.classes_info['REMIC Classes'])
 		self.regular_classes = self.classes[:]
-		self.regular_classes.remove('R')
+		if 'R' in self.regular_classes:
+			self.regular_classes.remove('R')
 		self.accrual_classes = list(self.accruals_sequential_pay.keys())
 		self.principal_classes = list(set(self.regular_classes) - set(self.accrual_classes))
 
-		self.pools_info['Original Balance'] = self.pools_info['Original Balance'].astype(float)
+		self.pools_info.index = self.pools_info['Pool ID']
+		self.pools_info['Balance'] = self.pools_info['Balance'].astype(float)
 		self.pools_info['WAC'] = self.pools_info['WAC'].astype(float)
-		self.classes_info['Original Balance'] = self.classes_info['Original Balance'].astype(float)
-		self.classes_info['Class Coupon'] = self.classes_info['Original Balance'].astype(float)
+		self.pools_info['Spread'] = self.pools_info['Spread'].astype(float)
+		self.pools_info['LOL Cap'] = self.pools_info['LOL Cap'].astype(float)
+		self.pools_info['Periodic Cap'] = self.pools_info['Periodic Cap'].astype(float)
+		self.pools_info['LTV'] = self.pools_info['LTV'].astype(float)
+
+		self.pool_frm_balance = self.pools_info.loc['FRM','Balance']
+		self.pool_frm_wac = self.pools_info.loc['FRM','WAC']
+		self.pool_frm_ltv = self.pools_info.loc['FRM','LTV']
+
+		self.pool_arm_balance = self.pools_info.loc['ARM','Balance']
+		self.pool_arm_spread = self.pools_info.loc['ARM','Spread']
+		self.pool_arm_lol_cap = self.pools_info.loc['ARM','LOL Cap']
+		self.pool_arm_periodic_cap = self.pools_info.loc['ARM','Periodic Cap']
+		self.pool_frm_ltv = self.pools_info.loc['ARM','LTV']
+
 		self.classes_info.index = self.classes_info['REMIC Classes']
+		self.classes_info['Balance'] = self.classes_info['Balance'].astype(float)
+		self.classes_info['Spread'] = self.classes_info['Spread'].astype(float)
 
-		self.calculate_pool_groups_proportions()
 
+		self.calculate_ARM_simulated_rates()
 
-	def simulation_result(self, hazard_model, simulated_lagged_10_year_rates_A,part_price,part_convexity,data_type):
-
-		#---------------------------
-		# Cashflows and Prices
-		#---------------------------
-
-		simulation_summary = self.calculate_price(hazard_model, simulated_lagged_10_year_rates_A, dr=0)
-
-		if self.show_prints:
-			print('\nPart '+ part_price + ':\n' + str(simulation_summary) + '\n\n')
-			self.tables_file.write(latex_table(simulation_summary, caption = "Simulation summary", label = "prices", index = True))
+	def simulation_result(self, hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default, simulated_lagged_10_year_rates_A):
 
 		#---------------------------
-		# Duration and Convexity
+		# Bonds
 		#---------------------------
 
-		dur_conv = self.calculate_durations_and_convexities(simulation_summary, hazard_model, simulated_lagged_10_year_rates_A, dr=0.0001, dt=1/12)
+		simulation_summary = self.calculate_price(hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_frm_default, simulated_lagged_10_year_rates_A, dr=0)
 
-		if self.show_prints:
-			print('\nPart '+ part_convexity + ':\n' + str(dur_conv) + '\n\n')
-			self.tables_file.write(latex_table(dur_conv, caption = "Duration and Convexity", label = "duration", index = True))
-
-		#---------------------------
-		# OAS
-		#---------------------------
-
-		oas_class = "CA"
-		oas = self.calculate_OAS(oas_class, hazard_model, simulated_lagged_10_year_rates_A)
-
-		if self.show_prints:
-			print("\nPart G w/ " + data_type + ":\nOAS for " + str(oas_class) + " = " + str(oas*100) + '%\n\n')
-
+		#if self.show_prints:
+			#print('\nPart '+ part_price + ':\n' + str(simulation_summary) + '\n\n')
+			#self.tables_file.write(latex_table(simulation_summary, caption = "Simulation summary", label = "prices", index = True))
 
 		#---------------------------
-		# Hazard Rate
+		# CDS
 		#---------------------------
 
-		#avg_hz = np.mean(SMM[0], axis=0)
 
-		#plt.plot(avg_hz)
-		#plt.xlabel("Months")
-		#plt.ylabel("Average Hazard Rate")
-		#plt.savefig('Results/1g_hazard_plot_'+data_type+'.eps', format='eps')
-		#if self.show_plots:
-		#	plt.show()
-		#else:
-		#	plt.cla()
 
-	def calculate_price(self, hazard_model, simulated_lagged_10_year_rates_A, dr=0):
+	def calculate_price(self, hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default, simulated_lagged_10_year_rates_A, dr=0):
 		'''
 			Calculates the average simulated price.
 			Allows parallel shocks in interest rates with dr.
-			cap_sim caps the number of simulations to be used.
 		'''
 
-		SMM = self.calculate_pool_simulation_prepayment(hazard_model, simulated_lagged_10_year_rates_A + dr)
-		N = simulated_lagged_10_year_rates_A.shape[0]
-		Nh = int(N/2)
-		prices_all = np.zeros((N, len(self.classes)))
-		prices_paired = np.zeros((Nh, len(self.classes)))
+		(SMM_frm, SMM_arm) = self.calculate_pool_simulation_prepayment(hz_frm_prepay, hz_arm_prepay, simulated_lagged_10_year_rates_A + dr)
 
-		r = self.simulated_rates + dr
-		Z = self.fi.hull_white_discount_factors_antithetic_path(r, dt=1/12)
+		plt.plot(SMM_frm[0], label="FRM")
+		plt.plot(SMM_arm[0], label="ARM")
+		plt.legend()
+		plt.show()
 
-		print("Calculating cash flows for each path...")
-		for n in range(N):
-			SMM_n = [SMM[i][n] for i in range(self.n_pools)]
-			r_n = r[n]
-			Z_n = Z[n]
-			pool_summary_n = self.calculate_pool_cf(SMM_n)
-			total_cf = self.calculate_classes_cf(pool_summary_n, r_n)
-			prices_all[n] = self.price_classes(total_cf, Z_n)
 
-		# Pair antithetic prices
-		for n in range(Nh):
-			prices_paired[n] = (prices_all[n] + prices_all[n+Nh])/2
+		#############################################################################################################################
 
-		summary_np = np.zeros((3,len(self.classes)))
-		summary_np[0, :] = prices_paired.mean(axis=0)
-		summary_np[1, :] = prices_paired.std(axis=0)
-		summary_np[2, :] = summary_np[1, :]/np.sqrt(Nh)
+		# Sagnik, try to implement these two functions
+		# house_prices = simulate_house_prices(...)
+		#(Default_frm, Default_arm) = self.calculate_pool_simulation_default(hz_frm_default, hz_arm_default, house_prices, ...)
+		
+		#############################################################################################################################
 
-		simulation_summary = pd.DataFrame(summary_np.T, columns = ['Average Price', 'Std. Deviation', 'Std. Error'])
-		simulation_summary.index = self.classes
 
-		return simulation_summary
 
-	def calculate_pool_simulation_prepayment(self, hazard_model, simulated_lagged_10_year_rates_A):
+
+		#N = simulated_lagged_10_year_rates_A.shape[0]
+		#Nh = int(N/2)
+		#prices_all = np.zeros((N, len(self.classes)))
+		#prices_paired = np.zeros((Nh, len(self.classes)))
+#
+		#r = self.simulated_rates + dr
+		#Z = self.fi.hull_white_discount_factors_antithetic_path(r, dt=1/12)
+#
+		#print("Calculating cash flows for each path...")
+		#for n in range(N):
+		#	SMM_n = [SMM[i][n] for i in range(self.n_pools)]
+		#	r_n = r[n]
+		#	Z_n = Z[n]
+		#	pool_summary_n = self.calculate_pool_cf(SMM_n, r_n)
+		#	total_cf = self.calculate_classes_cf(pool_summary_n, r_n)
+		#	prices_all[n] = self.price_classes(total_cf, Z_n)
+#
+		## Pair antithetic prices
+		#for n in range(Nh):
+		#	prices_paired[n] = (prices_all[n] + prices_all[n+Nh])/2
+#
+		#summary_np = np.zeros((3,len(self.classes)))
+		#summary_np[0, :] = prices_paired.mean(axis=0)
+		#summary_np[1, :] = prices_paired.std(axis=0)
+		#summary_np[2, :] = summary_np[1, :]/np.sqrt(Nh)
+#
+		#simulation_summary = pd.DataFrame(summary_np.T, columns = ['Average Price', 'Std. Deviation', 'Std. Error'])
+		#simulation_summary.index = self.classes
+#
+		#return simulation_summary
+
+	def calculate_ARM_simulated_rates(self):
+
+		T = self.simulated_rates_APR.shape[1]
+		ARM_simulated_rates = self.simulated_rates_APR + self.pool_arm_spread
+
+		self.ARM_simulated_rates_capped = np.copy(ARM_simulated_rates)
+
+		# Periodic cap
+		for i in range(1, T):
+			dr = ARM_simulated_rates[:, i] - self.ARM_simulated_rates_capped[:, i-1]
+			bool_periodic_cap_pos = dr > self.pool_arm_periodic_cap
+			bool_periodic_cap_neg = dr < -self.pool_arm_periodic_cap
+			self.ARM_simulated_rates_capped[bool_periodic_cap_pos, i] = self.ARM_simulated_rates_capped[bool_periodic_cap_pos, i-1] + self.pool_arm_periodic_cap
+			self.ARM_simulated_rates_capped[bool_periodic_cap_neg, i] = self.ARM_simulated_rates_capped[bool_periodic_cap_neg, i-1] - self.pool_arm_periodic_cap
+
+		# LOL cap
+		bool_lol_cap = self.ARM_simulated_rates_capped > self.pool_arm_lol_cap
+		self.ARM_simulated_rates_capped[bool_lol_cap] = self.pool_arm_lol_cap
+
+
+	def calculate_pool_simulation_prepayment(self, hz_frm_prepay, hz_arm_prepay, simulated_lagged_10_year_rates_A):
 		'''
 			Receives a fitted hazard_model from the Hazard class.
 			Returns numpy array with SMM where rows indicate simulation path and columns indicate month.
 		'''
 		# Summer variable
 		month_start = self.start_date.month
-		t = np.arange(0,self.maturity+1)
-		T = len(t)
+		T = min(self.maturity, simulated_lagged_10_year_rates_A.shape[1])
+		t = np.arange(0,T)
 		N = simulated_lagged_10_year_rates_A.shape[0]
 		month_index = np.mod(t + month_start - 1, 12) + 1
-		summer = np.array([1 if i>=5 and i<=8 else 0 for i in month_index])
+		summer = np.array([1.0 if i>=5 and i<=8 else 0.0 for i in month_index])
 
 		# Coupon gap
 		cpn_gap = []
 		# cpn_gap is a list of numpy arrays containing the coupon gap for every simulation and month.
 		# The list has one numpy array for each pool.
 		# Every row indicates a simulation and every column a month.
-		for pool_index in range(self.n_pools):
-			cpn_gap.append(self.pools_info.loc[pool_index, 'WAC'] - simulated_lagged_10_year_rates_A*100)
+		cpn_gap_frm = self.pool_frm_wac - simulated_lagged_10_year_rates_A[:,:T]*100
+		cpn_gap_arm = self.ARM_simulated_rates_capped[:,:T] - simulated_lagged_10_year_rates_A[:,:T]*100
 
-		# Prepayment
-		SMM = [np.zeros((N, T))]*self.n_pools
-		for pool_index in range(self.n_pools):
-			for n in range(N):
-				cpn_gap_n = cpn_gap[pool_index][n][:T]
-				covars = np.array((cpn_gap_n, summer)).T
-				SMM[pool_index][n] = hazard_model.calculate_prepayment(t, covars)
+		## Prepayment
+		SMM_frm = np.zeros((N, T))
+		SMM_arm = np.zeros((N, T))
+		for n in range(N):
+			cpn_gap_frm_n = cpn_gap_frm[n]
+			cpn_gap_arm_n = cpn_gap_arm[n]
+			covars_frm = np.array((cpn_gap_frm_n, summer)).T
+			covars_arm = np.array((cpn_gap_arm_n, summer)).T
+			SMM_frm[n] = hz_frm_prepay.calculate_prepayment(t, covars_frm)
+			SMM_arm[n] = hz_arm_prepay.calculate_prepayment(t, covars_arm)
 
-		return SMM
+		return (SMM_frm, SMM_arm)
 
-	def calculate_pool_cf(self, SMM):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	def calculate_pool_cf_old(self, SMM):
 		'''
-			If harzard_flag = True, then the calculated hazard array must be inputted
-			When flag is true, this will replace the SMM method
+			Calculates pool cashflows given monthly prepayment (SMM)
 		'''
 		columns = ['Total Principal', 'Total Interest', 'Balance', 'Interest Available to CMO']
 		pool_summary = pd.DataFrame(np.zeros((self.maturity+1, 4)), columns = columns)
 		pools = []
 
 		for pool_index in range(self.n_pools):
-			balance = self.pools_info.loc[pool_index, 'Original Balance']
+			balance = self.pools_info.loc[pool_index, 'Balance']
 			r_month = self.pools_info.loc[pool_index, 'WAC']/12/100
 			term = self.pools_info.loc[pool_index, 'Term']
 			age = self.pools_info.loc[pool_index, 'Age']
@@ -206,18 +252,46 @@ class REMIC:
 
 		return pool_summary
 
+	def calculate_pool_cf(self, hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default):
+		'''
+			Calculates pool cashflows given monthly prepayment (SMM) and continuous (instantenous) spot rate (r)
+		'''
+		columns = ['Total Principal', 'Total Interest', 'Balance', 'Interest Available to CMO']
+		pool_summary = pd.DataFrame(np.zeros((self.maturity+1, 4)), columns = columns)
+		pools = []
+
+		for pool_index in range(self.n_pools):
+			balance = self.pools_info.loc[pool_index, 'Balance']
+			r_month = self.pools_info.loc[pool_index, 'WAC']/12/100
+			term = self.pools_info.loc[pool_index, 'Term']
+			age = self.pools_info.loc[pool_index, 'Age']
+			columns = ['PMT', 'Interest', 'Principal', 'CPR', 'SMM', 'Prepay_CF', 'Balance']
+			pool = pd.DataFrame(np.zeros((self.maturity+1,7)), columns = columns)
+			pool.loc[0,'Balance'] = balance
+			pool['SMM'] = SMM[pool_index]
+			for month in range(1, term+1):
+				prev_balance = pool.loc[month-1,'Balance']
+				pool.loc[month, 'PMT'] = self.coupon_payment(r_month, term - (month - 1), prev_balance)
+				pool.loc[month, 'Interest'] = prev_balance*r_month
+				pool.loc[month, 'Principal'] = prev_balance if pool.loc[month, 'PMT'] - pool.loc[month, 'Interest'] > prev_balance else pool.loc[month, 'PMT'] - pool.loc[month, 'Interest']
+				pool.loc[month, 'Prepay_CF'] = pool.loc[month, 'SMM']*(prev_balance - pool.loc[month, 'Principal'])
+				pool.loc[month, 'Balance'] = prev_balance - pool.loc[month, 'Principal'] - pool.loc[month, 'Prepay_CF']
+			pools.append(pool)
+
+		for pool in pools:
+			pool_summary['Total Principal'] += pool['Principal'] + pool['Prepay_CF']
+			pool_summary['Total Interest'] += pool['Interest']
+			pool_summary['Balance'] += pool['Balance']
+
+		for month in range(1, self.maturity+1):
+			pool_summary.loc[month, 'Interest Available to CMO'] = self.pool_interest_rate/12*pool_summary.loc[month - 1, 'Balance']
+
+		return pool_summary
+
+
+
 	def coupon_payment(self, r_month, months_remaining, balance):
 		return r_month*balance/(1-1/(1+r_month)**months_remaining)
-
-	def calculate_pool_groups_proportions(self):
-		self.principal_groups_proportions = {}
-		total_balance = 0
-		for group in self.principal_sequential_pay:
-			for cl in self.principal_sequential_pay[group]:
-				self.principal_groups_proportions[group] = self.principal_groups_proportions.get(group, 0) + self.classes_info.loc[cl, 'Original Balance']
-				total_balance += self.classes_info.loc[cl, 'Original Balance']
-		for group in self.principal_groups_proportions:
-			self.principal_groups_proportions[group] = float(self.principal_groups_proportions[group])/total_balance
 
 	def calculate_classes_cf(self, pool_summary, r):
 		'''
@@ -233,7 +307,7 @@ class REMIC:
 
 		# Initial Balance
 		for cl in self.classes:
-			classes_balance.loc[0, cl] = self.classes_info.loc[cl, 'Original Balance']
+			classes_balance.loc[0, cl] = self.classes_info.loc[cl, 'Balance']
 
 		for month in range(1, pool_summary.shape[0]):
 
@@ -337,7 +411,7 @@ class REMIC:
 		N = simulated_lagged_10_year_rates_A.shape[0]
 		Nh = int(N/2)
 		dt = 1/12
-		par_value = self.classes_info.loc[oas_class, 'Original Balance']
+		par_value = self.classes_info.loc[oas_class, 'Balance']
 		# Spot rates are continously compounded.
 		# Accoding to the lectures, OAS is the spread using monthly compounding.
 		monthly_compounded_rates = np.exp(self.simulated_rates[:Nh, :T]*dt)-1

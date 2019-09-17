@@ -351,7 +351,7 @@ class Homework1:
             horizon is the horizon in years of the period to get the APR.
             previous rates are the T years Treasury rates in BEY 
         '''
-        previous_rates = (1+(np.array(previous_rates)/2))**2/12*12 # From BEY to monthly APR
+        previous_rates = ((1+(np.array(previous_rates)/2))**(2/12)-1)*12 # From BEY to monthly APR
         n = r_A.shape[0]
         Z_A = self.fi.hull_white_discount_factor(r_A, 0, horizon, self.theta, self.kappa, self.sigma)
         r_APR = 12*((1/Z_A)**(1/(12*horizon)) - 1)
