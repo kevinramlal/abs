@@ -100,17 +100,44 @@ class REMIC:
 		plt.legend()
 		plt.show()
 
-
 		#############################################################################################################################
 
 		# Sagnik, try to implement these two functions
 		# house_prices = simulate_house_prices(...)
 		#(Default_frm, Default_arm) = self.calculate_pool_simulation_default(hz_frm_default, hz_arm_default, house_prices, ...)
-		
+
 		#############################################################################################################################
 
 
+	def simulate_house_prices(self, n, q, phi, simulated_lagged_10_year_rates_A, h0_frm, h0_arm):
+		'''
+			Simulates n paths of house prices.
+			Returns two numpy arrays one for FRM and one for ARM.
+			Rows indicate simulation path and columns indicate month.
 
+			What do we need for this? We know dH = (r-q) * H * dt + phi * H * dW.
+			So we need, r which is the riskless short rate, q and phi which are constants, dt which we know.
+		'''
+		dt = 1/12
+		T = min(self.maturity, simulated_lagged_10_year_rates_A.shape[1])
+		N = simulated_lagged_10_year_rates_A.shape[0]
+
+		## House price simulations
+		np.random.seed(0)
+		hp_frm = np.zeros((N, T))
+		hp_arm = np.zeros((N, T))
+
+		hp_frm[:, 0] = h0_frm
+		hp_arm[:, 0] = h0_arm
+
+		for i in range(1,T):
+			w = np.random.normal(0, 1, N)
+			dh_frm = (simulated_lagged_10_year_rates_A[:,i] - q)*hp_frm[:, i-1]*dt + phi*hp_frm[:, i-1]*w*np.sqrt(dt)
+			dh_arm = (simulated_lagged_10_year_rates_A[:,i] - q)*hp_arm[:, i-1]*dt + phi*hp_frm[:, i-1]*w*np.sqrt(dt)
+			hp_frm[:, i] = hp_frm[:, i-1] + dh_frm
+			hp_arm[:, i] = hp_arm[:, i-1] + dh_arm
+
+		return (hp_frm, hp_arm)
 
 		#N = simulated_lagged_10_year_rates_A.shape[0]
 		#Nh = int(N/2)
