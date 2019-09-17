@@ -28,6 +28,8 @@ hw1 = homework1.Homework1(show_prints=False, show_plots=False)
 hw1.fit_term_structure_model()
 simulated_rates_A = hw1.simulate_interest_rates(n=n_simulations)
 
+
+
 # Pools initialization
 start_date = '6/30/2009'
 first_payment_date = '7/30/2004'
@@ -40,6 +42,20 @@ previous_rates = [0.025313, 0.025587, 0.02344] # CORRECT THESE
 simulated_lagged_10_year_rates_A = hw1.calculate_T_year_rate_APR(simulated_rates_A, lag=3, horizon=10, previous_rates=previous_rates)
 hw_remic = remic.REMIC(start_date, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates_A, tables_file, show_prints=True, show_plots=False)
 
+# House price evolutions for FRM and ARM
+rental_flow_rate = 0.025
+vol_house_prices = 0.12
+
+#Configure the below
+LTV_frm = 0.856
+LTV_arm = 0.856
+rem_bal_frm = 52416155.0
+rem_bal_arm = 226122657.0
+
+h0_frm = rem_bal_frm/LTV_frm
+h0_arm = rem_bal_arm/LTV_arm
+
+hp_frm, hp_arm = hw_remic.simulate_house_prices(n_simulations, rental_flow_rate, vol_house_prices, simulated_lagged_10_year_rates_A, h0_frm, h0_arm)
 
 optimize_hazard_models = False # True to run all hazard models optimizations.
 
