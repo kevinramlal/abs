@@ -18,11 +18,10 @@ class REMIC:
 		Values REMIC bonds and calculates relevant metrics.
 	'''
 
-	def __init__(self, start_date, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates, tables_file, show_prints=False, show_plots=False):
+	def __init__(self, pool_origination_date, evaluation_date, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates, tables_file, show_prints=False, show_plots=False):
 		# Direct inputs
-		self.start_date = datetime.strptime(start_date, "%m/%d/%Y")
-		self.first_payment_date = datetime.strptime(first_payment_date, "%m/%d/%Y")
-		self.pool_interest_rate = pool_interest_rate
+		self.pool_origination_date = datetime.strptime(pool_origination_date, "%m/%d/%Y")
+		self.evaluation_date = datetime.strptime(evaluation_date, "%m/%d/%Y")
 		self.pools_info = pools_info
 		self.classes_info = classes_info
 		self.principal_sequential_pay = principal_sequential_pay
@@ -38,6 +37,7 @@ class REMIC:
 		self.maturity = np.max(self.pools_info['Term'])
 		self.T = min(self.maturity+1, simulated_rates.shape[1]) # Months remaining counting month 0
 		self.N = simulated_rates.shape[0] # Number of simulations
+		self.evaluation_lag = (12*self.evaluation_date.year + self.evaluation_date.month) - (12*self.pool_origination_date.year + self.pool_origination_date.month)
 		self.n_pools = self.pools_info.shape[0]
 		self.classes = list(self.classes_info['REMIC Classes'])
 		self.classes_ordered = principal_sequential_pay['1']
@@ -96,8 +96,7 @@ class REMIC:
 		'''
 
 		self.calculate_pool_simulation_prepayment(hz_frm_prepay, hz_arm_prepay, simulated_lagged_10_year_rates_A + dr)
-		#self.calculate_pool_simulation_default(hz_frm_default, hz_arm_default, frm_remaining_bal, arm_remaining_bal)
-		self.calculate_pool_cf(hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default)
+		self.calculate_cashflows(hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default)
 
 		plt.plot(self.SMM_frm[0], label="FRM")
 		plt.plot(self.SMM_arm[0], label="ARM")
@@ -126,7 +125,7 @@ class REMIC:
 		#	SMM_n = [SMM[i][n] for i in range(self.n_pools)]
 		#	r_n = r[n]
 		#	Z_n = Z[n]
-		#	pool_summary_n = self.calculate_pool_cf(SMM_n, r_n)
+		#	pool_summary_n = self.calculate_cashflows(SMM_n, r_n)
 		#	total_cf = self.calculate_classes_cf(pool_summary_n, r_n)
 		#	prices_all[n] = self.price_classes(total_cf, Z_n)
 #
@@ -199,8 +198,8 @@ class REMIC:
 			Returns numpy array with SMM where rows indicate simulation path and columns indicate month.
 		'''
 		# Summer variable
-		month_start = self.start_date.month
-		t = np.arange(0,self.T)
+		month_start = self.evaluation_date.month
+		t = np.arange(0,self.T) + self.evaluation_lag
 		month_index = np.mod(t + month_start - 1, 12) + 1
 		summer = np.array([1.0 if i>=5 and i<=8 else 0.0 for i in month_index])
 
@@ -226,9 +225,12 @@ class REMIC:
 	def coupon_payment(self, r_month, months_remaining, balance):
 		return r_month*balance/(1-1/(1+r_month)**months_remaining)
 
-	def calculate_pool_cf(self, hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default):
+	def calculate_cashflows(self, hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default):
 		'''
 			Calculates pool cashflows considering prepayment and defaults of FRM and ARM pools.
+			Then distributes interest and principal to bond classes.
+			Defaults is managed using excess spread first and then the overcollateralization amount.
+			Positive excess spread is saved in the overcollateralization amount until a target is reached, at which point it starts to be distributed as principal.
 		'''
 
 		# Contractual
@@ -264,16 +266,25 @@ class REMIC:
 		overcollateralization = np.zeros((self.N, self.T))
 
 		# Bonds
-		bonds_balance = {}
-		bonds_interest = {}
-		bonds_principal = {}
+		self.bonds_balance = {}
+		self.bonds_interest = {}
+		self.bonds_principal = {}
+		self.bonds_extra_principal = {} # Distributed due to excess spread after overcollateralization target has been achieved.
+		self.bonds_principal_default = {}
+		self.overcollateralization_amount = np.zeros((self.N, self.T)) # We will assume it starts at zero, given we do not have this information
 		for cl in self.classes_ordered:
-			bonds_balance[cl] = np.zeros((self.N, self.T))
-			bonds_balance[cl, 0] = self.classes_info.loc[cl,'Balance']
-			bonds_interest[cl] = np.zeros((self.N, self.T))
-			bonds_principal[cl] = np.zeros((self.N, self.T))
+			self.bonds_balance[cl] = np.zeros((self.N, self.T))
+			self.bonds_balance[cl][:, 0] = self.classes_info.loc[cl,'Balance']
+			self.bonds_interest[cl] = np.zeros((self.N, self.T))
+			self.bonds_principal[cl] = np.zeros((self.N, self.T))
+			self.bonds_extra_principal[cl] = np.zeros((self.N, self.T))
+			self.bonds_principal_default[cl] = np.zeros((self.N, self.T))
 
-		for month in range(1, 2): #self.T
+		for month in range(1, self.T):
+
+			# ----------------------------------
+			#  Pool cash flows
+			# ----------------------------------
 
 			# Contratcual
 			prev_balance_frm = balance_frm[:, month-1]
@@ -304,8 +315,8 @@ class REMIC:
 			ltv_arm[:, month] = ltv_arm[:, month-1]/house_increase_factor
 			ltv_frm_month = np.resize(ltv_frm[:, month], (self.N, 1))
 			ltv_arm_month = np.resize(ltv_arm[:, month], (self.N, 1))
-			self.default_frm[:, month] = hz_frm_default.calculate_default(month, ltv_frm_month)
-			self.default_arm[:, month] = hz_arm_default.calculate_default(month, ltv_arm_month)
+			self.default_frm[:, month] = hz_frm_default.calculate_default(month + self.evaluation_lag, ltv_frm_month)
+			self.default_arm[:, month] = hz_arm_default.calculate_default(month + self.evaluation_lag, ltv_arm_month)
 			principal_default_frm[:, month] = self.default_frm[:, month]*remaining_balance_frm
 			principal_default_arm[:, month] = self.default_arm[:, month]*remaining_balance_arm
 			balance_frm[:, month] = remaining_balance_frm - principal_default_frm[:, month]
@@ -316,63 +327,64 @@ class REMIC:
 			remaining_principal = principal_pmt_frm[:, month] + principal_pmt_arm[:, month] + principal_prepay_frm[:, month] + principal_prepay_arm[:, month]
 			for cl in self.classes_ordered:
 				# Interest
-				prev_balance = bonds_balance[cl, month-1]
+				prev_balance = self.bonds_balance[cl][:, month-1]
 				interest_rate = self.simulated_rates_APR[:, month-1] + self.classes_info.loc[cl,'Spread']/12/100
 				interest_cl = prev_balance*interest_rate
-				bonds_interest[cl, month] = np.minimum(interest_cl, remaining_interest)
+				self.bonds_interest[cl][:, month] = np.minimum(interest_cl, remaining_interest)
 				remaining_interest -= np.minimum(interest_cl, remaining_interest)
 
 				# Principal
 				principal_cl = np.minimum(prev_balance, remaining_principal)
+				self.bonds_principal[cl][:, month] = principal_cl
 				remaining_principal -= principal_cl
 
+			# ----------------------------------
+			#  Default management
+			# ----------------------------------
 
-			# Default management
 			# Excess spread
 			principal_default = principal_default_frm[:, month] + principal_default_arm[:, month]
-			excess_spread[:, month] = np.maximum(remaining_interest-principal_default, np.zeros(self.N))
-			principal_default = np.maximum(principal_default-remaining_interest, np.zeros(self.N))
+			excess_spread[:, month] = np.maximum(remaining_interest - principal_default, np.zeros(self.N))
+			principal_default_remaining_after_excess_spread = np.maximum(principal_default - remaining_interest, np.zeros(self.N))
 
 			# Overcollateralization
-			# I'm hard coding stuff now. To be honest didn't see much gains last time by programming in a general way.
+			principal_default_remaining = np.maximum(principal_default_remaining_after_excess_spread - self.overcollateralization_amount[:, month], np.zeros(self.N))
+			self.overcollateralization_amount[:, month] = np.maximum(self.overcollateralization_amount[:, month] - principal_default_remaining_after_excess_spread, np.zeros(self.N))
 			option_1 = np.zeros(self.N) + 0.031*(79036000 + 714395000)
 			option_2 = 0.062*(balance_frm[:, month] + balance_arm[:, month])
 			option_3 = 3967158
-			# option_1 is higher than option_3, so option_3 is discarded
-			overcollateralization_target = np.maximum(option_1, option_2)
+			#overcollateralization_target = np.maximum(option_1, np.maximum(option_2, option_3))
+			overcollateralization_target = option_1 # option_1 is always higher
+			extra_principal = np.maximum(self.overcollateralization_amount[:, month] + excess_spread[:, month] - overcollateralization_target, np.zeros(self.N))
+			overcollateralization_inflow = np.minimum(overcollateralization_target - self.overcollateralization_amount[:, month], excess_spread[:, month])
+			self.overcollateralization_amount[:, month] += overcollateralization_inflow
 
+			# Take a peak
+			#print("remaining_interest", remaining_interest)
+			#print("principal_default", principal_default)
+			#print("excess_spread", excess_spread[:, month])
+			#print("principal_default_remaining", principal_default_remaining)
+			#print("overcollateralization_target", overcollateralization_target)
+			#print("extra_principal", extra_principal)
+			#print("overcollateralization_inflow", overcollateralization_inflow)
+			#print("self.overcollateralization_amount", self.overcollateralization_amount[:, month])
+			#print("\n")
 
-		self.total_principal_pmt = principal_pmt_frm + principal_pmt_arm + principal_prepay_frm + principal_prepay_arm
-		self.total_interest_pmt = interest_pmt_frm + interest_pmt_arm
-		self.total_principal_default = principal_default_frm + principal_default_arm
-		self.total_balance = balance_frm + balance_arm
+			# Extra principal distribution
+			for cl in self.classes_ordered:
+				balance_cl = self.bonds_balance[cl][:, month]
+				principal_cl = np.minimum(balance_cl, extra_principal)
+				self.bonds_extra_principal[cl][:, month] = principal_cl
+				self.bonds_principal[cl][:, month] += principal_cl
+				extra_principal -= principal_cl
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+			# Default distribution
+			for cl in self.classes_ordered[::-1]:
+				balance_cl = self.bonds_balance[cl][:, month]
+				principal_cl = np.minimum(balance_cl, principal_default_remaining)
+				self.bonds_principal_default[cl][:, month] = principal_cl
+				self.bonds_principal[cl][:, month] -= principal_cl
+				principal_default_remaining -= principal_cl
 
 
 
@@ -395,71 +407,6 @@ class REMIC:
 
 
 
-	def calculate_classes_cf(self, pool_summary, r):
-		'''
-			Calculates cash flows of all bonds given the simulated interest rates.
-			First cash flow starting at month 1.
-		'''
-		columns = self.classes
-		classes_balance = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
-		classes_interest = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
-		classes_accrued = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
-		classes_principal = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
-		classes_interest_cf = pd.DataFrame(np.zeros((self.maturity+1, len(columns))), columns = columns)
-
-		# Initial Balance
-		for cl in self.classes:
-			classes_balance.loc[0, cl] = self.classes_info.loc[cl, 'Balance']
-
-		for month in range(1, pool_summary.shape[0]):
-
-			# Interest
-			for cl in self.accrual_classes:
-				classes_interest.loc[month, cl] = self.pool_interest_rate/12*classes_balance.loc[month - 1, cl]
-
-			# Distribute Principal
-			principal = pool_summary.loc[month, 'Total Principal']
-			for group in self.principal_groups_proportions:
-				principal_group_remaining = principal*self.principal_groups_proportions[group]
-				for cl in self.principal_sequential_pay[group]:
-					payment = min(principal_group_remaining, classes_balance.loc[month - 1, cl])
-					classes_principal.loc[month, cl] += payment
-					principal_group_remaining -= payment
-
-			# Distribute Interest
-			for cl in self.accrual_classes:
-				interest_remaining = classes_interest.loc[month, cl]
-				for cl_prin in self.accruals_sequential_pay[cl]:
-					payment = min(interest_remaining, classes_balance.loc[month - 1, cl_prin] - classes_principal.loc[month, cl_prin])
-					classes_principal.loc[month, cl_prin] += payment
-					interest_remaining -= payment
-
-				last_class = self.accruals_sequential_pay[cl][-1]
-				if classes_balance.loc[month - 1, last_class] - classes_principal.loc[month - 1, last_class] > 0:
-					classes_principal.loc[month, cl] += interest_remaining
-					classes_accrued.loc[month, cl] = classes_interest.loc[month, cl]
-				else:
-					classes_principal.loc[month, cl] += min(interest_remaining, classes_principal.loc[month, last_class])
-					classes_accrued.loc[month, cl] = min(classes_interest.loc[month, cl], classes_principal.loc[month, last_class])
-
-			# Update Balance
-			for cl in self.regular_classes:
-				classes_balance.loc[month, cl] = max(0, classes_balance.loc[month - 1, cl] + classes_accrued.loc[month, cl] - classes_principal.loc[month, cl])
-
-			# Interest cash flow
-			for cl in self.regular_classes:
-				if cl in self.accrual_classes:
-					classes_interest_cf.loc[month, cl] = classes_interest.loc[month, cl] - classes_accrued.loc[month, cl]
-				else:
-					classes_interest_cf.loc[month, cl] = self.pool_interest_rate/12*classes_balance.loc[month - 1, cl]
-
-		# Total cash flow
-		total_interest = classes_interest_cf.sum(1)
-		total_cf = classes_principal + classes_interest_cf
-		coupon_differential = pool_summary['Total Principal'] + pool_summary['Interest Available to CMO'] - total_cf.iloc[:,0:-1].sum(axis=1)
-		total_cf['R'] = coupon_differential + total_cf.iloc[:,0:-1].sum(axis=1)*((1+r[:total_cf.shape[0]]/12)**(0.5)-1)
-
-		return total_cf.iloc[1:,:]
 
 	def price_classes(self, total_cf, Z):
 
