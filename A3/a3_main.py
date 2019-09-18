@@ -47,17 +47,7 @@ rental_flow_rate = 0.025
 vol_house_prices = 0.12
 hw_remic.simulate_house_prices(n_simulations, rental_flow_rate, vol_house_prices)
 
-
-# Next commented lines will be erased. This info is already in the REMIC class.
-#Configure the below
-#LTV_frm = 0.856
-#LTV_arm = 0.856
-#rem_bal_frm = 52416155.0
-#rem_bal_arm = 226122657.0
-#h0_frm = rem_bal_frm/LTV_frm
-#h0_arm = rem_bal_arm/LTV_arm
-
-
+# Hazard models
 optimize_hazard_models = False # True to run all hazard models optimizations.
 
 # FRM prepayment
