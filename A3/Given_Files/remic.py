@@ -94,6 +94,7 @@ class REMIC:
 		'''
 
 		self.calculate_pool_simulation_prepayment(hz_frm_prepay, hz_arm_prepay, simulated_lagged_10_year_rates_A + dr)
+		#self.calculate_pool_simulation_default(hz_frm_default, hz_arm_default, frm_remaining_bal, arm_remaining_bal)
 
 		plt.plot(self.SMM_frm[0], label="FRM")
 		plt.plot(self.SMM_arm[0], label="ARM")
@@ -223,24 +224,30 @@ class REMIC:
 			self.SMM_frm[n] = hz_frm_prepay.calculate_prepayment(t, covars_frm)
 			self.SMM_arm[n] = hz_arm_prepay.calculate_prepayment(t, covars_arm)
 
+	def calculate_pool_simulation_default(self, hz_frm_default, hz_arm_default, frm_remaining_bal, arm_remaining_bal):
+		'''
+			Receives a fitted hazard_model from the Hazard class.
+			Returns numpy array with monthly default where rows indicate simulation path and columns indicate month.
+		'''
+		# House prices evolution for FRM and ARM have same shape.
+		T = min(self.maturity, self.hp_frm.shape[1])
+		t = np.arange(0,T)
+		N = self.hp_frm.shape[0]
 
+		# LTV calculation
+		# LTV_ratio_frm/arm is a list of numpy arrays containing the LTV evolution for every simulation and month.
+		# The list has one numpy array for each pool.
+		# Every row indicates a simulation and every column a month.
 
+		LTV_ratio_frm = frm_remaining_bal/self.hp_frm
+		LTV_ratio_arm = arm_remaining_bal/self.hp_arm
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+		## Prepayment
+		self.Monthly_Default_frm = np.zeros((N, T))
+		self.Monthly_Default_arm = np.zeros((N, T))
+		for n in range(N):
+			self.Monthly_Default_frm[n] = hz_frm_default.calculate_default(t)
+			self.Monthly_Default_arm[n] = hz_arm_default.calculate_default(t)
 
 
 	def calculate_pool_cf_old(self, SMM):
