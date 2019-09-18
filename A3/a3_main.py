@@ -47,6 +47,7 @@ rental_flow_rate = 0.025
 vol_house_prices = 0.12
 hw_remic.simulate_house_prices(n_simulations, rental_flow_rate, vol_house_prices)
 
+
 # Next commented lines will be erased. This info is already in the REMIC class.
 #Configure the below
 #LTV_frm = 0.856

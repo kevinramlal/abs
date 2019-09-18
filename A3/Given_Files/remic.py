@@ -94,6 +94,7 @@ class REMIC:
 		'''
 
 		self.calculate_pool_simulation_prepayment(hz_frm_prepay, hz_arm_prepay, simulated_lagged_10_year_rates_A + dr)
+		self.calculate_pool_cf(hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default)
 
 		plt.plot(self.SMM_frm[0], label="FRM")
 		plt.plot(self.SMM_arm[0], label="ARM")
@@ -224,6 +225,87 @@ class REMIC:
 			self.SMM_arm[n] = hz_arm_prepay.calculate_prepayment(t, covars_arm)
 
 
+	def calculate_pool_cf(self, hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default):
+		'''
+			Calculates pool cashflows given monthly prepayment (SMM) and continuous (instantenous) spot rate (r)
+		'''
+		columns = ['Total Principal', 'Total Interest', 'Balance', 'Interest Available to CMO']
+		pool_summary = pd.DataFrame(np.zeros((self.maturity+1, 4)), columns = columns)
+		pools = []
+
+		T = min(self.maturity, self.simulated_rates_cont.shape[1])
+		N = self.simulated_rates_cont.shape[0]
+
+		# FRM
+		r_month = self.pool_frm_wac/12/100
+		balance = np.zeros((N, T))
+		amortization_pmt = np.zeros((N, T))
+		intererst_pmt = np.zeros((N, T))
+		principal_pmt = np.zeros((N, T))
+		principal_prepay = np.zeros((N, T))
+
+		balance[:, 0] = self.pool_frm_balance
+
+		for month in range(1, 2): # T
+			prev_balance = balance[:, month-1]
+			# Mortgage owners pay equal monthly payments. We will call that amortization payment (also called coupon payment)
+			# The amortization payment has to be recalculated every period because of prepayment
+			amortization_pmt[:, month] = self.coupon_payment(r_month, T - (month - 1), prev_balance)
+			interest_pmt[:, month] = prev_balance*r_month
+			principal_pmt[:, month] = amortization_pmt[:, month] - interest_pmt[:, month]
+			# We manage explicitly an extreme case that may happen in the last payment because of rounding error
+			extreme_case = amortization_pmt[:, month] - interest_pmt[:, month] > prev_balance
+			principal_pmt[extreme_case, month] = prev_balance[extreme_case]
+			principal_prepay[:, month] = self.SMM_frm[:, month]*(prev_balance - principal_pmt[:, month])
+			# Default!
+			balance[:, month] = prev_balance - principal_pmt[:, month] - principal_prepay[:, month]
+
+
+
+		#for pool_index in range(self.n_pools):
+		#	balance = self.pools_info.loc[pool_index, 'Balance']
+		#	r_month = self.pools_info.loc[pool_index, 'WAC']/12/100
+		#	term = self.pools_info.loc[pool_index, 'Term']
+		#	age = self.pools_info.loc[pool_index, 'Age']
+		#	columns = ['PMT', 'Interest', 'Principal', 'CPR', 'SMM', 'Prepay_CF', 'Balance']
+		#	pool = pd.DataFrame(np.zeros((self.maturity+1,7)), columns = columns)
+		#	pool.loc[0,'Balance'] = balance
+		#	pool['SMM'] = SMM[pool_index]
+		#	for month in range(1, term+1):
+		#		prev_balance = pool.loc[month-1,'Balance']
+		#		pool.loc[month, 'PMT'] = self.coupon_payment(r_month, term - (month - 1), prev_balance)
+		#		pool.loc[month, 'Interest'] = prev_balance*r_month
+		#		pool.loc[month, 'Principal'] = prev_balance if pool.loc[month, 'PMT'] - pool.loc[month, 'Interest'] > prev_balance else pool.loc[month, 'PMT'] - pool.loc[month, 'Interest']
+		#		pool.loc[month, 'Prepay_CF'] = pool.loc[month, 'SMM']*(prev_balance - pool.loc[month, 'Principal'])
+		#		pool.loc[month, 'Balance'] = prev_balance - pool.loc[month, 'Principal'] - pool.loc[month, 'Prepay_CF']
+		#	pools.append(pool)
+#
+		#for pool in pools:
+		#	pool_summary['Total Principal'] += pool['Principal'] + pool['Prepay_CF']
+		#	pool_summary['Total Interest'] += pool['Interest']
+		#	pool_summary['Balance'] += pool['Balance']
+#
+		#for month in range(1, self.maturity+1):
+		#	pool_summary.loc[month, 'Interest Available to CMO'] = self.pool_interest_rate/12*pool_summary.loc[month - 1, 'Balance']
+#
+		#return pool_summary
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -278,43 +360,6 @@ class REMIC:
 			pool_summary.loc[month, 'Interest Available to CMO'] = self.pool_interest_rate/12*pool_summary.loc[month - 1, 'Balance']
 
 		return pool_summary
-
-	def calculate_pool_cf(self, hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default):
-		'''
-			Calculates pool cashflows given monthly prepayment (SMM) and continuous (instantenous) spot rate (r)
-		'''
-		columns = ['Total Principal', 'Total Interest', 'Balance', 'Interest Available to CMO']
-		pool_summary = pd.DataFrame(np.zeros((self.maturity+1, 4)), columns = columns)
-		pools = []
-
-		for pool_index in range(self.n_pools):
-			balance = self.pools_info.loc[pool_index, 'Balance']
-			r_month = self.pools_info.loc[pool_index, 'WAC']/12/100
-			term = self.pools_info.loc[pool_index, 'Term']
-			age = self.pools_info.loc[pool_index, 'Age']
-			columns = ['PMT', 'Interest', 'Principal', 'CPR', 'SMM', 'Prepay_CF', 'Balance']
-			pool = pd.DataFrame(np.zeros((self.maturity+1,7)), columns = columns)
-			pool.loc[0,'Balance'] = balance
-			pool['SMM'] = SMM[pool_index]
-			for month in range(1, term+1):
-				prev_balance = pool.loc[month-1,'Balance']
-				pool.loc[month, 'PMT'] = self.coupon_payment(r_month, term - (month - 1), prev_balance)
-				pool.loc[month, 'Interest'] = prev_balance*r_month
-				pool.loc[month, 'Principal'] = prev_balance if pool.loc[month, 'PMT'] - pool.loc[month, 'Interest'] > prev_balance else pool.loc[month, 'PMT'] - pool.loc[month, 'Interest']
-				pool.loc[month, 'Prepay_CF'] = pool.loc[month, 'SMM']*(prev_balance - pool.loc[month, 'Principal'])
-				pool.loc[month, 'Balance'] = prev_balance - pool.loc[month, 'Principal'] - pool.loc[month, 'Prepay_CF']
-			pools.append(pool)
-
-		for pool in pools:
-			pool_summary['Total Principal'] += pool['Principal'] + pool['Prepay_CF']
-			pool_summary['Total Interest'] += pool['Interest']
-			pool_summary['Balance'] += pool['Balance']
-
-		for month in range(1, self.maturity+1):
-			pool_summary.loc[month, 'Interest Available to CMO'] = self.pool_interest_rate/12*pool_summary.loc[month - 1, 'Balance']
-
-		return pool_summary
-
 
 
 	def coupon_payment(self, r_month, months_remaining, balance):
