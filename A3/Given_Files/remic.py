@@ -60,7 +60,7 @@ class REMIC:
 		self.pool_arm_spread = self.pools_info.loc['ARM','Spread']
 		self.pool_arm_lol_cap = self.pools_info.loc['ARM','LOL Cap']
 		self.pool_arm_periodic_cap = self.pools_info.loc['ARM','Periodic Cap']
-		self.pool_frm_ltv = self.pools_info.loc['ARM','LTV']
+		self.pool_arm_ltv = self.pools_info.loc['ARM','LTV']
 
 		self.classes_info.index = self.classes_info['REMIC Classes']
 		self.classes_info['Balance'] = self.classes_info['Balance'].astype(float)
@@ -93,10 +93,10 @@ class REMIC:
 			Allows parallel shocks in interest rates with dr.
 		'''
 
-		(SMM_frm, SMM_arm) = self.calculate_pool_simulation_prepayment(hz_frm_prepay, hz_arm_prepay, simulated_lagged_10_year_rates_A + dr)
+		self.calculate_pool_simulation_prepayment(hz_frm_prepay, hz_arm_prepay, simulated_lagged_10_year_rates_A + dr)
 
-		plt.plot(SMM_frm[0], label="FRM")
-		plt.plot(SMM_arm[0], label="ARM")
+		plt.plot(self.SMM_frm[0], label="FRM")
+		plt.plot(self.SMM_arm[0], label="ARM")
 		plt.legend()
 		plt.show()
 
@@ -108,36 +108,6 @@ class REMIC:
 
 		#############################################################################################################################
 
-
-	def simulate_house_prices(self, n, q, phi, simulated_lagged_10_year_rates_A, h0_frm, h0_arm):
-		'''
-			Simulates n paths of house prices.
-			Returns two numpy arrays one for FRM and one for ARM.
-			Rows indicate simulation path and columns indicate month.
-
-			What do we need for this? We know dH = (r-q) * H * dt + phi * H * dW.
-			So we need, r which is the riskless short rate, q and phi which are constants, dt which we know.
-		'''
-		dt = 1/12
-		T = min(self.maturity, simulated_lagged_10_year_rates_A.shape[1])
-		N = simulated_lagged_10_year_rates_A.shape[0]
-
-		## House price simulations
-		np.random.seed(0)
-		hp_frm = np.zeros((N, T))
-		hp_arm = np.zeros((N, T))
-
-		hp_frm[:, 0] = h0_frm
-		hp_arm[:, 0] = h0_arm
-
-		for i in range(1,T):
-			w = np.random.normal(0, 1, N)
-			dh_frm = (simulated_lagged_10_year_rates_A[:,i] - q)*hp_frm[:, i-1]*dt + phi*hp_frm[:, i-1]*w*np.sqrt(dt)
-			dh_arm = (simulated_lagged_10_year_rates_A[:,i] - q)*hp_arm[:, i-1]*dt + phi*hp_frm[:, i-1]*w*np.sqrt(dt)
-			hp_frm[:, i] = hp_frm[:, i-1] + dh_frm
-			hp_arm[:, i] = hp_arm[:, i-1] + dh_arm
-
-		return (hp_frm, hp_arm)
 
 		#N = simulated_lagged_10_year_rates_A.shape[0]
 		#Nh = int(N/2)
@@ -169,6 +139,37 @@ class REMIC:
 		#simulation_summary.index = self.classes
 #
 		#return simulation_summary
+
+
+	def simulate_house_prices(self, n, q, phi):
+		'''
+			Simulates n paths of house prices.
+			Returns two numpy arrays one for FRM and one for ARM.
+			Rows indicate simulation path and columns indicate month.
+
+			What do we need for this? We know dH = (r-q) * H * dt + phi * H * dW.
+			So we need, r which is the riskless short rate, q and phi which are constants, dt which we know.
+		'''
+		dt = 1/12
+		T = min(self.maturity, self.simulated_rates_cont.shape[1])
+		N = self.simulated_rates_cont.shape[0]
+		h0_frm = self.pool_frm_balance/self.pool_frm_ltv
+		h0_arm = self.pool_arm_balance/self.pool_arm_ltv
+
+		## House price simulations
+		np.random.seed(0)
+		self.hp_frm = np.zeros((N, T))
+		self.hp_arm = np.zeros((N, T))
+
+		self.hp_frm[:, 0] = h0_frm
+		self.hp_arm[:, 0] = h0_arm
+
+		for i in range(1,T):
+			w = np.random.normal(0, 1, N)
+			dh_frm = (self.simulated_rates_cont[:,i] - q)*self.hp_frm[:, i-1]*dt + phi*self.hp_frm[:, i-1]*w*np.sqrt(dt)
+			dh_arm = (self.simulated_rates_cont[:,i] - q)*self.hp_arm[:, i-1]*dt + phi*self.hp_frm[:, i-1]*w*np.sqrt(dt)
+			self.hp_frm[:, i] = self.hp_frm[:, i-1] + dh_frm
+			self.hp_arm[:, i] = self.hp_arm[:, i-1] + dh_arm
 
 	def calculate_ARM_simulated_rates(self):
 
@@ -212,17 +213,16 @@ class REMIC:
 		cpn_gap_arm = self.ARM_simulated_rates_capped[:,:T] - simulated_lagged_10_year_rates_A[:,:T]*100
 
 		## Prepayment
-		SMM_frm = np.zeros((N, T))
-		SMM_arm = np.zeros((N, T))
+		self.SMM_frm = np.zeros((N, T))
+		self.SMM_arm = np.zeros((N, T))
 		for n in range(N):
 			cpn_gap_frm_n = cpn_gap_frm[n]
 			cpn_gap_arm_n = cpn_gap_arm[n]
 			covars_frm = np.array((cpn_gap_frm_n, summer)).T
 			covars_arm = np.array((cpn_gap_arm_n, summer)).T
-			SMM_frm[n] = hz_frm_prepay.calculate_prepayment(t, covars_frm)
-			SMM_arm[n] = hz_arm_prepay.calculate_prepayment(t, covars_arm)
+			self.SMM_frm[n] = hz_frm_prepay.calculate_prepayment(t, covars_frm)
+			self.SMM_arm[n] = hz_arm_prepay.calculate_prepayment(t, covars_arm)
 
-		return (SMM_frm, SMM_arm)
 
 
 

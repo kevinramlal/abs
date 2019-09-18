@@ -101,7 +101,7 @@ class FixedIncome:
 		r_up[:, 0] = r0
 		r_dn[:, 0] = r0
 		for i in range(1, len(theta)):
-			w = np.random.normal(0, sigma, int(n/2))
+			w = np.random.normal(0, 1, int(n/2))
 			dr_up = (theta[i-1] - kappa*r_up[:, i-1])*dt + sigma*w*np.sqrt(dt)
 			dr_dn = (theta[i-1] - kappa*r_dn[:, i-1])*dt - sigma*w*np.sqrt(dt)
 			r_up[:, i] = r_up[:, i-1] + dr_up
