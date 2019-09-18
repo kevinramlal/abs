@@ -154,6 +154,11 @@ class Hazard:
 		prepayment = base_hz*np.exp(np.matmul(covars, b))
 		return prepayment
 
+	def calculate_default(self, t, covars):
+		base_hz = self.baseline_hazard(t)
+		b = self.theta[2:]
+		default = base_hz*np.exp(np.matmul(covars, b))
+		return default
 
 	# ------------------------------- #
 	#  Time varying hazard model  #
