@@ -36,7 +36,7 @@ first_payment_date = '7/30/2004'
 pool_interest_rate = 0.05
 pools_info = pd.read_csv('./Given_Files/pools_general_info.csv', thousands=',')
 classes_info = pd.read_csv('./Given_Files/classes_general_info.csv', thousands=',')
-principal_sequential_pay = {'1': ['A1','A2','A3','M1','M2','M3','M4','M5','M6','M7','M8','M9','M10']}
+principal_sequential_pay = {'1': ['A2','A3','M1','M2','M3','M4','M5','M6','M7','M8']}
 accruals_sequential_pay = {}
 previous_rates = [0.025313, 0.025587, 0.02344] # CORRECT THESE
 simulated_lagged_10_year_rates_A = hw1.calculate_T_year_rate_APR(simulated_rates_A, lag=3, horizon=10, previous_rates=previous_rates)
