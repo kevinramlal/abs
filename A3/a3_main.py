@@ -11,7 +11,7 @@ sys.path.insert(1,'./Given_Files')
 import homework1
 import hazard
 import remic
-import a3_helper
+#import a3_helper
 
 """
 Step 1: Need to estimate 4 hazards {ARM/FRM} x {Prepayment/Default}
