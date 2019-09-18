@@ -237,87 +237,89 @@ class REMIC:
 
 	def calculate_pool_cf(self, hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default):
 		'''
-			Calculates pool cashflows given monthly prepayment (SMM) and continuous (instantenous) spot rate (r)
+			Calculates pool cashflows considering prepayment and defaults of FRM and ARM pools.
 		'''
-		columns = ['Total Principal', 'Total Interest', 'Balance', 'Interest Available to CMO']
-		pool_summary = pd.DataFrame(np.zeros((self.maturity+1, 4)), columns = columns)
-		pools = []
-
 		T = min(self.maturity, self.simulated_rates_cont.shape[1])
 		N = self.simulated_rates_cont.shape[0]
 
-		# FRM
-		r_month = self.pool_frm_wac/12/100
-		balance = np.zeros((N, T))
-		amortization_pmt = np.zeros((N, T))
-		intererst_pmt = np.zeros((N, T))
-		principal_pmt = np.zeros((N, T))
-		principal_prepay = np.zeros((N, T))
+		r_month_frm = self.pool_frm_wac/12/100
+		r_month_arm = self.ARM_simulated_rates_capped/12/100
+		balance_frm = np.zeros((N, T))
+		balance_arm = np.zeros((N, T))
+		amortization_pmt_frm = np.zeros((N, T))
+		amortization_pmt_arm = np.zeros((N, T))
+		interest_pmt_frm = np.zeros((N, T))
+		interest_pmt_arm = np.zeros((N, T))
+		principal_pmt_frm = np.zeros((N, T))
+		principal_pmt_arm = np.zeros((N, T))
+		principal_prepay_frm = np.zeros((N, T))
+		principal_prepay_arm = np.zeros((N, T))
+		ltv_frm = np.zeros((N, T))
+		ltv_arm = np.zeros((N, T))
+		self.default_frm = np.zeros((N, T))
+		self.default_arm = np.zeros((N, T))
+		principal_default_frm = np.zeros((N, T))
 
-		balance[:, 0] = self.pool_frm_balance
-    
-		# LTV calculation
-		# LTV_ratio_frm/arm is a list of numpy arrays containing the LTV evolution for every simulation and month.
-		# The list has one numpy array for each pool.
-		# Every row indicates a simulation and every column a month.
+		balance_frm[:, 0] = self.pool_frm_balance
+		balance_arm[:, 0] = self.pool_arm_balance
+		ltv_frm[:, 0] = self.pool_frm_ltv
+		ltv_arm[:, 0] = self.pool_arm_ltv
+        
+		for month in range(1, T):
 
-		LTV_ratio_frm = frm_remaining_bal/self.hp_frm
-		LTV_ratio_arm = arm_remaining_bal/self.hp_arm
-
-		## Prepayment
-		self.Monthly_Default_frm = np.zeros((N, T))
-		self.Monthly_Default_arm = np.zeros((N, T))
-		for n in range(N):
-			self.Monthly_Default_frm[n] = hz_frm_default.calculate_default(t)
-			self.Monthly_Default_arm[n] = hz_arm_default.calculate_default(t)
-    
-		for month in range(1, 2): # T
-			prev_balance = balance[:, month-1]
+			# Contratcual cash flows
+			prev_balance_frm = balance_frm[:, month-1]
+			prev_balance_arm = balance_arm[:, month-1]
 			# Mortgage owners pay equal monthly payments. We will call that amortization payment (also called coupon payment)
 			# The amortization payment has to be recalculated every period because of prepayment
-			amortization_pmt[:, month] = self.coupon_payment(r_month, T - (month - 1), prev_balance)
-			interest_pmt[:, month] = prev_balance*r_month
-			principal_pmt[:, month] = amortization_pmt[:, month] - interest_pmt[:, month]
+			amortization_pmt_frm[:, month] = self.coupon_payment(r_month_frm, T - (month - 1), prev_balance_frm)
+			amortization_pmt_arm[:, month] = self.coupon_payment(r_month_arm[:, month-1], T - (month - 1), prev_balance_frm)
+			interest_pmt_frm[:, month] = prev_balance_frm*r_month_frm
+			interest_pmt_arm[:, month] = prev_balance_arm*r_month_arm[:, month-1]
+			principal_pmt_frm[:, month] = amortization_pmt_frm[:, month] - interest_pmt_frm[:, month]
+			principal_pmt_arm[:, month] = amortization_pmt_arm[:, month] - interest_pmt_arm[:, month]
 			# We manage explicitly an extreme case that may happen in the last payment because of rounding error
-			extreme_case = amortization_pmt[:, month] - interest_pmt[:, month] > prev_balance
-			principal_pmt[extreme_case, month] = prev_balance[extreme_case]
-			principal_prepay[:, month] = self.SMM_frm[:, month]*(prev_balance - principal_pmt[:, month])
-			# Default!
-			balance[:, month] = prev_balance - principal_pmt[:, month] - principal_prepay[:, month]
+			extreme_case_frm = amortization_pmt_frm[:, month] - interest_pmt_frm[:, month] > prev_balance_frm
+			extreme_case_arm = amortization_pmt_arm[:, month] - interest_pmt_arm[:, month] > prev_balance_arm
+			principal_pmt_frm[extreme_case_frm, month] = prev_balance_frm[extreme_case_frm]
+			principal_pmt_arm[extreme_case_arm, month] = prev_balance_arm[extreme_case_arm]
+
+			# Prepayment
+			principal_prepay_frm[:, month] = self.SMM_frm[:, month]*(prev_balance_frm - principal_pmt_frm[:, month])
+			principal_prepay_arm[:, month] = self.SMM_arm[:, month]*(prev_balance_arm - principal_pmt_arm[:, month])
+			remaining_balance_frm = prev_balance_frm - principal_pmt_frm[:, month] - principal_prepay_frm[:, month]
+			remaining_balance_arm = prev_balance_arm - principal_pmt_arm[:, month] - principal_prepay_arm[:, month]
+
+			# Default
+			house_increase_factor = self.hp_frm[:, month]/self.hp_frm[:, month-1]
+			ltv_frm[:, month] = ltv_frm[:, month-1]/house_increase_factor
+			ltv_arm[:, month] = ltv_arm[:, month-1]/house_increase_factor
+			ltv_frm_month = np.resize(ltv_frm[:, month], (N, 1))
+			ltv_arm_month = np.resize(ltv_arm[:, month], (N, 1))
+			self.default_frm[:, month] = hz_frm_default.calculate_default(month, ltv_frm_month)
+			self.default_arm[:, month] = hz_arm_default.calculate_default(month, ltv_arm_month)
+			principal_default_frm = self.default_frm[:, month]*remaining_balance_frm
+			principal_default_arm = self.default_arm[:, month]*remaining_balance_arm
+			balance_frm[:, month] = remaining_balance_frm - principal_default_frm
+			balance_arm[:, month] = remaining_balance_arm - principal_default_arm
+
+		self.total_principal_pmt = principal_pmt_frm + principal_pmt_arm + principal_prepay_frm + principal_prepay_arm
+		self.total_interest_pmt = interest_pmt_frm + interest_pmt_arm
+		self.total_principal_default = principal_default_frm + principal_default_arm
+		self.total_balance = balance_frm + balance_arm
+
+		print(balance_arm)
+
+		#print(self.default_frm)
+		#print(self.default_arm)
+		#print(principal_default_frm)
+		#print(principal_default_arm)
 
 
-
-		#for pool_index in range(self.n_pools):
-		#	balance = self.pools_info.loc[pool_index, 'Balance']
-		#	r_month = self.pools_info.loc[pool_index, 'WAC']/12/100
-		#	term = self.pools_info.loc[pool_index, 'Term']
-		#	age = self.pools_info.loc[pool_index, 'Age']
-		#	columns = ['PMT', 'Interest', 'Principal', 'CPR', 'SMM', 'Prepay_CF', 'Balance']
-		#	pool = pd.DataFrame(np.zeros((self.maturity+1,7)), columns = columns)
-		#	pool.loc[0,'Balance'] = balance
-		#	pool['SMM'] = SMM[pool_index]
-		#	for month in range(1, term+1):
-		#		prev_balance = pool.loc[month-1,'Balance']
-		#		pool.loc[month, 'PMT'] = self.coupon_payment(r_month, term - (month - 1), prev_balance)
-		#		pool.loc[month, 'Interest'] = prev_balance*r_month
-		#		pool.loc[month, 'Principal'] = prev_balance if pool.loc[month, 'PMT'] - pool.loc[month, 'Interest'] > prev_balance else pool.loc[month, 'PMT'] - pool.loc[month, 'Interest']
-		#		pool.loc[month, 'Prepay_CF'] = pool.loc[month, 'SMM']*(prev_balance - pool.loc[month, 'Principal'])
-		#		pool.loc[month, 'Balance'] = prev_balance - pool.loc[month, 'Principal'] - pool.loc[month, 'Prepay_CF']
-		#	pools.append(pool)
-#
-		#for pool in pools:
-		#	pool_summary['Total Principal'] += pool['Principal'] + pool['Prepay_CF']
-		#	pool_summary['Total Interest'] += pool['Interest']
-		#	pool_summary['Balance'] += pool['Balance']
-#
-		#for month in range(1, self.maturity+1):
-		#	pool_summary.loc[month, 'Interest Available to CMO'] = self.pool_interest_rate/12*pool_summary.loc[month - 1, 'Balance']
-#
-		#return pool_summary
-
-
-
-
+		#print("total_principal_pmt", self.total_principal_pmt)
+		#print("total_interest_pmt", self.total_interest_pmt)
+		#print("total_principal_default", self.total_principal_default)
+		#print("total_balance", self.total_balance)
 
 
 
