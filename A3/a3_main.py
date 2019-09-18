@@ -31,16 +31,15 @@ simulated_rates_A = hw1.simulate_interest_rates(n=n_simulations)
 
 
 # Pools initialization
-start_date = '6/30/2009'
-first_payment_date = '7/30/2004'
-pool_interest_rate = 0.05
+pool_origination_date = '3/27/2006'
+evaluation_date = '6/30/2009'
 pools_info = pd.read_csv('./Given_Files/pools_general_info.csv', thousands=',')
 classes_info = pd.read_csv('./Given_Files/classes_general_info.csv', thousands=',')
 principal_sequential_pay = {'1': ['A2','A3','M1','M2','M3','M4','M5','M6','M7','M8']}
 accruals_sequential_pay = {}
 previous_rates = [0.025313, 0.025587, 0.02344] # CORRECT THESE
 simulated_lagged_10_year_rates_A = hw1.calculate_T_year_rate_APR(simulated_rates_A, lag=3, horizon=10, previous_rates=previous_rates)
-hw_remic = remic.REMIC(start_date, first_payment_date, pool_interest_rate, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates_A, tables_file, show_prints=True, show_plots=False)
+hw_remic = remic.REMIC(pool_origination_date, evaluation_date, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates_A, tables_file, show_prints=True, show_plots=False)
 
 # House price evolutions for FRM and ARM
 rental_flow_rate = 0.025
