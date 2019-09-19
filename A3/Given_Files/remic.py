@@ -74,63 +74,27 @@ class REMIC:
 
 	def simulation_result(self, hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default, simulated_lagged_10_year_rates_A):
 
-		#---------------------------
-		# Bonds
-		#---------------------------
+		# Prepayment
+		self.calculate_pool_simulation_prepayment(hz_frm_prepay, hz_arm_prepay, simulated_lagged_10_year_rates_A)
 
-		simulation_summary = self.calculate_price(hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default, simulated_lagged_10_year_rates_A, dr=0)
-
-		#if self.show_prints:
-			#print('\nPart '+ part_price + ':\n' + str(simulation_summary) + '\n\n')
-			#self.tables_file.write(latex_table(simulation_summary, caption = "Simulation summary", label = "prices", index = True))
-
-		#---------------------------
-		# CDS
-		#---------------------------
-
-
-
-	def calculate_price(self, hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default, simulated_lagged_10_year_rates_A, dr=0):
-		'''
-			Calculates the average simulated price.
-			Allows parallel shocks in interest rates with dr.
-		'''
-
-		self.calculate_pool_simulation_prepayment(hz_frm_prepay, hz_arm_prepay, simulated_lagged_10_year_rates_A + dr)
+		# Cash flows
 		self.calculate_cashflows(hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default)
-		self.plot_results()
+		if self.show_plots:
+			self.plot_cashflow_results()
 
-		#N = simulated_lagged_10_year_rates_A.shape[0]
-		#Nh = int(N/2)
-		#prices_all = np.zeros((N, len(self.classes)))
-		#prices_paired = np.zeros((Nh, len(self.classes)))
-#
-		#r = self.simulated_rates + dr
-		#Z = self.fi.hull_white_discount_factors_antithetic_path(r, dt=1/12)
-#
-		#print("Calculating cash flows for each path...")
-		#for n in range(N):
-		#	SMM_n = [SMM[i][n] for i in range(self.n_pools)]
-		#	r_n = r[n]
-		#	Z_n = Z[n]
-		#	pool_summary_n = self.calculate_cashflows(SMM_n, r_n)
-		#	total_cf = self.calculate_classes_cf(pool_summary_n, r_n)
-		#	prices_all[n] = self.price_classes(total_cf, Z_n)
-#
-		## Pair antithetic prices
-		#for n in range(Nh):
-		#	prices_paired[n] = (prices_all[n] + prices_all[n+Nh])/2
-#
-		#summary_np = np.zeros((3,len(self.classes)))
-		#summary_np[0, :] = prices_paired.mean(axis=0)
-		#summary_np[1, :] = prices_paired.std(axis=0)
-		#summary_np[2, :] = summary_np[1, :]/np.sqrt(Nh)
-#
-		#simulation_summary = pd.DataFrame(summary_np.T, columns = ['Average Price', 'Std. Deviation', 'Std. Error'])
-		#simulation_summary.index = self.classes
-#
-		#return simulation_summary
+		# Prices
+		results_df = self.calculate_bond_prices()
+		if self.show_prints:
+			print("\nSimulated prices\n", results_df)
 
+		# M2 and M5 questions
+		M2_price = results_df.loc['M2','Average Price']
+		M5_price = results_df.loc['M5','Average Price']
+		M2_par = self.classes_info.loc['M2', 'Balance']
+		M5_par = self.classes_info.loc['M5', 'Balance']
+		if self.show_prints:
+			print("\nM2: Price = "+str(int(M2_price))+", Par = "+str(M2_par)+", Perc. of par = "+str(round(M2_price/M2_par*100,2))+"%")
+			print("M5: Price = "+str(int(M5_price))+", Par = "+str(M5_par)+", Perc. of par = "+str(round(M5_price/M5_par*100,2))+"%")
 
 	def simulate_house_prices(self, n, q, phi):
 		'''
@@ -311,6 +275,10 @@ class REMIC:
 			self.balance_frm[:, month] = prev_balance_frm - self.principal_pmt_frm[:, month] - self.principal_prepay_frm[:, month] - self.principal_default_frm[:, month]
 			self.balance_arm[:, month] = prev_balance_arm - self.principal_pmt_arm[:, month] - self.principal_prepay_arm[:, month] - self.principal_default_arm[:, month]
 
+			# ----------------------------------
+			#  Bonds cash flows
+			# ----------------------------------
+
 			# Interest and Principal distribution
 			remaining_interest = self.interest_pmt_frm[:, month] + self.interest_pmt_arm[:, month]
 			remaining_principal = self.principal_pmt_frm[:, month] + self.principal_pmt_arm[:, month] + self.principal_prepay_frm[:, month] + self.principal_prepay_arm[:, month]
@@ -377,7 +345,7 @@ class REMIC:
 				principal_default_remaining -= principal_cl
 
 
-	def plot_results(self):
+	def plot_cashflow_results(self):
 
 		# -------------------------------
 		#  Pools
@@ -455,105 +423,60 @@ class REMIC:
 		plt.legend()
 		plt.show()
 
+		# Interest
+		for cl in self.classes_ordered:
+			plt.plot(t0, self.bonds_interest[cl].mean(axis=0)/1e6, label=cl)
+		plt.ylabel("Average interest ($mm)")
+		plt.xlabel("Months from "+ evaluation_date)
+		plt.legend()
+		plt.show()
+
+		# Principal
+		for cl in self.classes_ordered:
+			plt.plot(t0, self.bonds_principal[cl].mean(axis=0)/1e6, label=cl)
+		plt.ylabel("Average principal ($mm)")
+		plt.xlabel("Months from "+ evaluation_date)
+		plt.legend()
+		plt.show()
+
+		# Default
+		for cl in self.classes_ordered:
+			plt.plot(t0, self.bonds_principal_default[cl].mean(axis=0)/1e6, label=cl)
+		plt.ylabel("Average default loss ($mm)")
+		plt.xlabel("Months from "+ evaluation_date)
+		plt.legend()
+		plt.show()
+
 		# Overcollateralization amount
 		plt.plot(t0, self.overcollateralization_amount.mean(axis=0))
 		plt.ylabel("Average overcollateralization amount ($)")
 		plt.xlabel("Months from "+ evaluation_date)
 		plt.show()
 
+	def calculate_bond_prices(self):
+
+		r = self.simulated_rates_cont
+		Z = self.fi.hull_white_discount_factors_antithetic_path(r, dt=1/12)[:, :self.T]
+		Nh = (int)(self.N/2)
+
+		# Calculate simulated prices
+		bonds_simulated_prices = {}
+		results = np.zeros((len(self.classes_ordered), 3))
+		for i in range(len(self.classes_ordered)):
+			cl = self.classes_ordered[i]
+			bonds_prices = np.sum((self.bonds_interest[cl] + self.bonds_principal[cl])*Z, axis=1)
+			bonds_simulated_prices[cl] = (bonds_prices[:Nh] + bonds_prices[Nh:])/2
+
+			# Price
+			results[i, 0] = np.mean(bonds_simulated_prices[cl])
+			results[i, 1] = np.std(bonds_simulated_prices[cl])
+			results[i, 2] = results[i, 1]/np.sqrt(Nh)
+
+		results_df = pd.DataFrame(results, columns=['Average Price', 'Std. Deviation', 'Std. Error'])
+		results_df.index = self.classes_ordered
+
+		self.tables_file.write(latex_table(results_df, caption = "Simulated Prices", label = "prices", index = True))
+
+		return results_df
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	def price_classes(self, total_cf, Z):
-
-		prices = np.zeros(len(self.classes))
-		m = total_cf.shape[0]
-		for cl_ind in range(len(self.classes)):
-			cashflows = np.array(total_cf.iloc[:, cl_ind])
-			prices[cl_ind] = np.sum(cashflows*Z[:m])
-		return prices
-
-	def calculate_durations_and_convexities(self, simulation_summary, hazard_model,  simulated_lagged_10_year_rates_A, dr, dt):
-
-		simulation_summary_up = self.calculate_price(hazard_model, simulated_lagged_10_year_rates_A, dr=dr)
-		simulation_summary_dn = self.calculate_price(hazard_model, simulated_lagged_10_year_rates_A, dr=-dr)
-
-		dur = np.zeros(len(self.classes))
-		conv = np.zeros(len(self.classes))
-
-		P = simulation_summary['Average Price']
-		P_up = simulation_summary_up['Average Price']
-		P_dn = simulation_summary_dn['Average Price']
-
-		dur = (P_dn-P_up)/(P*2*dr)
-		conv = (P_dn+P_up-2*P)/(P*dr**2)
-
-		dur_conv = np.zeros((2,len(self.classes)))
-		dur_conv[0, :] = dur
-		dur_conv[1, :] = conv
-
-		dur_conv = pd.DataFrame(dur_conv.T, columns = ['Duration', 'Convexity'])
-		dur_conv.index = self.classes
-
-		return dur_conv
-
-	def to_minimize_oas(self, spread, par_value, oas_class_cf, monthly_compounded_rates):
-
-		# Discount factors
-		Z = 1/(1 + monthly_compounded_rates + spread)
-		for i in range(1, Z.shape[1]):
-			Z[:, i] = Z[:, i-1]*Z[:, i]
-
-		# Price
-		discounted_cf = np.multiply(oas_class_cf, Z)
-		price = np.mean(np.sum(discounted_cf, axis=1))
-
-		return (price - par_value)**2
-
-	def calculate_OAS(self, oas_class, hazard_model, simulated_lagged_10_year_rates_A):
-
-		T = self.maturity
-		N = simulated_lagged_10_year_rates_A.shape[0]
-		Nh = int(N/2)
-		dt = 1/12
-		par_value = self.classes_info.loc[oas_class, 'Balance']
-		# Spot rates are continously compounded.
-		# Accoding to the lectures, OAS is the spread using monthly compounding.
-		monthly_compounded_rates = np.exp(self.simulated_rates[:Nh, :T]*dt)-1
-
-		SMM = self.calculate_pool_simulation_prepayment(hazard_model, simulated_lagged_10_year_rates_A)
-		r = self.simulated_rates[:Nh]
-		Z = self.fi.hull_white_discount_factors_antithetic_path(r, dt=1/12)
-		oas_class_cf = np.zeros((Nh, self.maturity))
-
-		print("Calculating cash flows for each path...")
-		for n in range(Nh):
-			SMM_n = [SMM[i][n] for i in range(self.n_pools)]
-			r_n = r[n]
-			Z_n = Z[n]
-			pool_summary_n = self.calculate_pool_cf(SMM_n)
-			total_cf = self.calculate_classes_cf(pool_summary_n, r_n)
-			oas_class_cf[n] = total_cf[oas_class]
-
-		res =  minimize(self.to_minimize_oas, x0 = 0 , args = (par_value, oas_class_cf, monthly_compounded_rates))
-		oas = res.x[0]
-		return oas
