@@ -68,7 +68,7 @@ hz_arm_default = hazard.Hazard(hz_arm_data, prepay_col="Default_indicator", end_
 hz_arm_default.param_estimate_dynamic(phist = [0.2,0.5,1],bounds = ((0.00001,np.inf),(0.00001,np.inf),(-np.inf,np.inf)),optimize_flag=optimize_hazard_models, theta=[1.758489, 0.017101, 0.838948])
 
 # Bond pricing
-hw_remic.simulation_result(hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_frm_default, simulated_lagged_10_year_rates_A)
+hw_remic.simulation_result(hz_frm_prepay, hz_frm_default, hz_arm_prepay, hz_arm_default, simulated_lagged_10_year_rates_A)
 
 
 
