@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(1,'./Given_Files')
 # Private libraries
-import homework1
+import a3_helper as a3
 import hazard
 import remic
 #import a3_helper
@@ -24,8 +24,8 @@ tables_file = open("tables_latex_format.txt","w")
 
 # Term struture model
 n_simulations = 1000 # Has to be even
-hw1 = homework1.Homework1(show_prints=False, show_plots=False)
-hw1.fit_term_structure_model()
+hw1 = a3.hull_white_fit()
+# hw1.fit_term_structure_model()
 simulated_rates_A = hw1.simulate_interest_rates(n=n_simulations)
 
 
