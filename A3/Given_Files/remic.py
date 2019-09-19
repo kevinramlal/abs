@@ -96,6 +96,11 @@ class REMIC:
 			print("\nM2: Price = "+str(int(M2_price))+", Par = "+str(M2_par)+", Perc. of par = "+str(round(M2_price/M2_par*100,2))+"%")
 			print("M5: Price = "+str(int(M5_price))+", Par = "+str(M5_par)+", Perc. of par = "+str(round(M5_price/M5_par*100,2))+"%")
 
+		# CDS NPV calculations
+		results_df_cds = self.calculate_CDS_NPV()
+		if self.show_prints:
+			print("\nSimulated CDS_NPVs\n", results_df_cds)
+
 	def simulate_house_prices(self, n, q, phi):
 		'''
 			Simulates n paths of house prices.
@@ -231,13 +236,30 @@ class REMIC:
 			self.bonds_extra_principal[cl] = np.zeros((self.N, self.T))
 			self.bonds_principal_default[cl] = np.zeros((self.N, self.T))
 
+		# CDS Buyer payments
+		self.M2_CDS_buyer_premium_payments = np.zeros((self.N, self.T))
+		self.M5_CDS_buyer_premium_payments = np.zeros((self.N, self.T))
+
+		self.M2_CDS_buyer_premium_payments[:,0] = self.classes_info.loc['M2','Balance'] * 0.3350
+		self.M5_CDS_buyer_premium_payments[:,0] = self.classes_info.loc['M5','Balance'] * 0.7250
+
+		#CDS Coupons
+		self.M2_CDS_buyer_premium_coupon = 0.17
+		self.M5_CDS_buyer_premium_coupon = 0.44
+
+		# CDS Seller payments
+		self.M2_CDS_seller_interest_payments = np.zeros((self.N, self.T))
+		self.M2_CDS_seller_balance_reduction_payments = np.zeros((self.N, self.T))
+		self.M5_CDS_seller_interest_payments = np.zeros((self.N, self.T))
+		self.M5_CDS_seller_balance_reduction_payments = np.zeros((self.N, self.T))
+
 		for month in range(1, self.T):
 
 			# ----------------------------------
 			#  Pool cash flows
 			# ----------------------------------
 
-			# Contratcual
+			# Contractual
 			prev_balance_frm = self.balance_frm[:, month-1]
 			prev_balance_arm = self.balance_arm[:, month-1]
 			# Mortgage owners pay equal monthly payments. We will call that amortization payment (also called coupon payment)
@@ -298,6 +320,18 @@ class REMIC:
 			excess_spread = remaining_interest
 
 			# ----------------------------------
+			#  CDS seller cash flows to cover unpaid interest
+			# ----------------------------------
+
+			#Shortfall in interest is interest owed minus actual interest paid
+			self.M2_CDS_seller_interest_payments[:,month] = (self.simulated_rates_APR[:, month-1] + self.classes_info.loc['M2','Spread'])/12/100 * self.bonds_balance['M2'][:, month-1]	- self.bonds_interest['M2'][:, month]
+			self.M5_CDS_seller_interest_payments[:,month] = (self.simulated_rates_APR[:, month-1] + self.classes_info.loc['M5','Spread'])/12/100 * self.bonds_balance['M5'][:, month-1]	- self.bonds_interest['M5'][:, month]
+
+			#CDS buyer premium payments
+			self.M2_CDS_buyer_premium_payments[:,month] = self.M2_CDS_buyer_premium_coupon/12/100 * self.bonds_balance['M2'][:, month-1]
+			self.M5_CDS_buyer_premium_payments[:,month] = self.M5_CDS_buyer_premium_coupon/12/100 * self.bonds_balance['M5'][:, month-1]
+
+			# ----------------------------------
 			#  Default management
 			# ----------------------------------
 
@@ -343,6 +377,10 @@ class REMIC:
 				self.bonds_principal_default[cl][:, month] = principal_cl
 				self.bonds_balance[cl][:, month] -= principal_cl
 				principal_default_remaining -= principal_cl
+
+			# Step 6: Protection seller protects the M2 and M5 classes. While the bond balances go down, the decrease in balance is treated as prepayment to the classes.
+			self.M2_CDS_seller_balance_reduction_payments[:, month] = self.bonds_principal_default['M2'][:, month]
+			self.M5_CDS_seller_balance_reduction_payments[:, month] = self.bonds_principal_default['M5'][:, month]
 
 
 	def plot_cashflow_results(self):
@@ -479,4 +517,26 @@ class REMIC:
 
 		return results_df
 
+	def calculate_CDS_NPV(self):
 
+		r = self.simulated_rates_cont
+		Z = self.fi.hull_white_discount_factors_antithetic_path(r, dt=1/12)[:, :self.T]
+		Nh = (int)(self.N/2)
+
+		results = []
+
+		#Calculate CDS NPV
+		cds_npv_m2 = np.sum((self.M2_CDS_seller_interest_payments + self.M2_CDS_seller_balance_reduction_payments - self.M2_CDS_buyer_premium_payments)*Z, axis=1)
+		cds_npv_m5 = np.sum((self.M5_CDS_seller_interest_payments + self.M5_CDS_seller_balance_reduction_payments - self.M5_CDS_buyer_premium_payments)*Z, axis=1)
+		cds_npv_simulated_m2 = (cds_npv_m2[:Nh] + cds_npv_m2[Nh:])/2
+		cds_npv_simulated_m5 = (cds_npv_m5[:Nh] + cds_npv_m5[Nh:])/2
+
+		results.append([np.mean(cds_npv_simulated_m2), np.std(cds_npv_simulated_m2), np.std(cds_npv_simulated_m2)/np.sqrt(Nh) ])
+		results.append([np.mean(cds_npv_simulated_m5), np.std(cds_npv_simulated_m5), np.std(cds_npv_simulated_m5)/np.sqrt(Nh) ])
+
+		results_df = pd.DataFrame(results, columns=['Average CDS NPV', 'Std. Deviation', 'Std. Error'])
+		results_df.index = ['M2', 'M5']
+
+		self.tables_file.write(latex_table(results_df, caption = "Simulated CDS_NPVs", label = "cds_npvs", index = True))
+
+		return results_df
