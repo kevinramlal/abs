@@ -397,15 +397,18 @@ class REMIC:
 		plt.ylabel("Average SMM (%)")
 		plt.xlabel("Months from "+ evaluation_date)
 		plt.legend()
+		plt.savefig('Images/pools_prepayment.eps', format='eps')
 		plt.show()
 
 		# Default (%)
-		t1 = np.arange(1, self.T)
-		plt.plot(t1, self.default_frm[:, 1:].mean(axis=0)*100, label="FRM")
-		plt.plot(t1, self.default_arm[:, 1:].mean(axis=0)*100, label="ARM")
+		limit = 150
+		t1 = np.arange(1, limit)
+		plt.plot(t1, self.default_frm[:, 1:limit].mean(axis=0)*100, label="FRM")
+		plt.plot(t1, self.default_arm[:, 1:limit].mean(axis=0)*100, label="ARM")
 		plt.ylabel("Average default (%)")
 		plt.xlabel("Months from "+ evaluation_date)
 		plt.legend()
+		plt.savefig('Images/pools_default.eps', format='eps')
 		plt.show()
 
 		# Balance
@@ -455,10 +458,11 @@ class REMIC:
 
 		# Balance
 		for cl in self.classes_ordered:
-			plt.plot(t0, self.bonds_balance[cl].mean(axis=0), label=cl)
-		plt.ylabel("Average balance ($)")
+			plt.plot(t0, self.bonds_balance[cl].mean(axis=0)/1e6, label=cl)
+		plt.ylabel("Average balance ($mm)")
 		plt.xlabel("Months from "+ evaluation_date)
 		plt.legend()
+		plt.savefig('Images/bonds_balance.eps', format='eps')
 		plt.show()
 
 		# Interest
@@ -467,6 +471,7 @@ class REMIC:
 		plt.ylabel("Average interest ($mm)")
 		plt.xlabel("Months from "+ evaluation_date)
 		plt.legend()
+		plt.savefig('Images/bonds_interest.eps', format='eps')
 		plt.show()
 
 		# Principal
@@ -475,6 +480,7 @@ class REMIC:
 		plt.ylabel("Average principal ($mm)")
 		plt.xlabel("Months from "+ evaluation_date)
 		plt.legend()
+		plt.savefig('Images/bonds_principal.eps', format='eps')
 		plt.show()
 
 		# Default
@@ -483,6 +489,7 @@ class REMIC:
 		plt.ylabel("Average default loss ($mm)")
 		plt.xlabel("Months from "+ evaluation_date)
 		plt.legend()
+		plt.savefig('Images/bonds_default.eps', format='eps')
 		plt.show()
 
 		# Overcollateralization amount

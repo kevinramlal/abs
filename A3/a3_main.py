@@ -11,13 +11,6 @@ sys.path.insert(1,'./Given_Files')
 import a3_helper as a3
 import hazard
 import remic
-#import a3_helper
-
-"""
-Step 1: Need to estimate 4 hazards {ARM/FRM} x {Prepayment/Default}
-Prepayment is the same as the coupon gap in HW2
-Default is defined as LTV : (remaining balance)/(home price)
-"""
 
 
 tables_file = open("tables_latex_format.txt","w")
@@ -47,7 +40,7 @@ vol_house_prices = 0.12
 hw_remic.simulate_house_prices(n_simulations, rental_flow_rate, vol_house_prices)
 
 # Hazard models
-optimize_hazard_models = False # True to run all hazard models optimizations.
+optimize_hazard_models = True # True to run all hazard models optimizations.
 
 # FRM prepayment
 hz_frm_data = pd.read_csv('./Given_Files/FRM_perf.csv')
