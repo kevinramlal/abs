@@ -30,7 +30,8 @@ pools_info = pd.read_csv('./Given_Files/pools_general_info.csv', thousands=',')
 classes_info = pd.read_csv('./Given_Files/classes_general_info.csv', thousands=',')
 principal_sequential_pay = {'1': ['A2','A3','M1','M2','M3','M4','M5','M6','M7','M8']}
 accruals_sequential_pay = {}
-previous_rates = [0.026647, 0.031206, 0.034613] # TREASURY
+# previous_rates = [0.026647, 0.031206, 0.034613] # TREASURY 10 YR 
+previous_rates = [0.012075, 0.011804872, 0.01149797086] # LIBOR 3M 
 simulated_lagged_10_year_rates_A = hw1.calculate_T_year_rate_APR(simulated_rates_A, lag=3, horizon=10, previous_rates=previous_rates)
 hw_remic = remic.REMIC(pool_origination_date, evaluation_date, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates_A, tables_file, show_prints=True, show_plots=True)
 
