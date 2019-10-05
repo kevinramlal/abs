@@ -1,0 +1,104 @@
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrr}
+\toprule
+{} &     Value &  Std. Error \\
+\midrule
+p      &  1.196813 &    5.425524 \\
+gamma  &  0.013147 &    0.299304 \\
+beta\_1 & -0.048916 &    2.747881 \\
+beta\_2 & -0.215195 &   18.742602 \\
+\bottomrule
+\end{tabular}
+\caption{Time varying hazard model estimates.}
+\label{tab:d_estimates}
+\end{table}
+
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrr}
+\toprule
+{} &     Value &  Std. Error \\
+\midrule
+p      &  1.556545 &    0.080599 \\
+gamma  &  0.006759 &    0.002323 \\
+beta\_1 &  1.402650 &    0.446305 \\
+\bottomrule
+\end{tabular}
+\caption{Time varying hazard model estimates.}
+\label{tab:d_estimates}
+\end{table}
+
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrr}
+\toprule
+{} &     Value &  Std. Error \\
+\midrule
+p      &  1.847123 &   12.376183 \\
+gamma  &  0.040327 &    0.244695 \\
+beta\_1 & -0.126106 &    3.282361 \\
+beta\_2 & -0.034690 &    6.037474 \\
+\bottomrule
+\end{tabular}
+\caption{Time varying hazard model estimates.}
+\label{tab:d_estimates}
+\end{table}
+
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrr}
+\toprule
+{} &     Value &  Std. Error \\
+\midrule
+p      &  1.758489 &    1.396931 \\
+gamma  &  0.017101 &    0.019276 \\
+beta\_1 &  0.838948 &    1.890597 \\
+\bottomrule
+\end{tabular}
+\caption{Time varying hazard model estimates.}
+\label{tab:d_estimates}
+\end{table}
+
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+{} &  Average Price &  Std. Deviation &    Std. Error \\
+\midrule
+A2 &   1.077940e+08 &    3.754367e+03 &    167.900378 \\
+A3 &   2.501658e+07 &    4.118015e+03 &    184.163246 \\
+M1 &   3.872880e+07 &    6.960821e+03 &    311.297360 \\
+M2 &   2.838988e+07 &    2.028849e+06 &  90732.877099 \\
+M3 &   4.045447e+06 &    2.138522e+06 &  95637.609039 \\
+M4 &   7.107602e+05 &    1.514715e+05 &   6774.009889 \\
+M5 &   2.667313e+05 &    3.194987e+04 &   1428.841718 \\
+M6 &   1.093308e+05 &    6.929769e+03 &    309.908683 \\
+M7 &   5.153530e+04 &    1.460510e+03 &     65.316003 \\
+M8 &   1.022422e+03 &    1.195555e-04 &      0.000005 \\
+\bottomrule
+\end{tabular}
+\caption{Simulated Prices}
+\label{tab:prices}
+\end{table}
+
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+{} &  Average CDS NPV &  Std. Deviation &    Std. Error \\
+\midrule
+M2 &    -8.101315e+06 &    2.019002e+06 &  90292.531958 \\
+M5 &     3.881905e+06 &    3.272128e+04 &   1463.340350 \\
+\bottomrule
+\end{tabular}
+\caption{Simulated CDS_NPVs}
+\label{tab:cds_npvs}
+\end{table}
+
