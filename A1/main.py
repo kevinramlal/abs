@@ -11,10 +11,10 @@ import remic
 # Through out the code we use _A to indicate the object has both normal paths and antithetic paths
 #
 
-# Term struture model
+# Term struture model #Step 1 - Use Hull White to generate short-rate paths 
 hw1 = homework1.Homework1(show_prints=False, show_plots=False)
 hw1.fit_term_structure_model()
-simulated_rates_A, simulated_Z_A = hw1.simulate_interest_rates(n=10)
+simulated_rates_A, simulated_Z_A = hw1.simulate_interest_rates(n=10) #anti-thetic 
 
 # Fit Hazard Model
 hz_static_data = pd.read_csv('static.csv', thousands=',')
@@ -22,7 +22,7 @@ hz = hazard.Hazard(hz_static_data, prepay_col="prepay", end_col="period_end", be
 hz.fit_parameters_grad()
 hz.parameters_se()
 
-# REMIC cashflows
+# REMIC cashflows 
 start_date = '8/15/2004'
 first_payment_date = '9/15/2004'
 pool_interest_rate = 0.05

@@ -264,7 +264,7 @@ class REMIC:
 			prev_balance_arm = self.balance_arm[:, month-1]
 			# Mortgage owners pay equal monthly payments. We will call that amortization payment (also called coupon payment)
 			# The amortization payment has to be recalculated every period because of prepayment
-			amortization_pmt_frm[:, month] = self.coupon_payment(r_month_frm, self.T - month , prev_balance_frm)
+			amortization_pmt_frm[:, month] = self.coupon_payment(r_month_frm, self.T - month , prev_balance_frm) #scheduled principal payments
 			amortization_pmt_arm[:, month] = self.coupon_payment(r_month_arm[:, month-1], self.T - month, prev_balance_arm)
 			self.interest_pmt_frm[:, month] = prev_balance_frm*r_month_frm
 			self.interest_pmt_arm[:, month] = prev_balance_arm*r_month_arm[:, month-1]
