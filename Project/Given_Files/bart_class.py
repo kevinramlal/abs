@@ -6,9 +6,17 @@ from scipy.optimize import minimize
 from scipy.optimize import fsolve
 from datetime import datetime
 import time
+import calendar
+
+import statsmodels.api as sm
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+import scipy.stats as stats
+
 import sys
 import fixed_income
 from utilities import *
+
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -28,7 +36,7 @@ class BART:
 		 TODO: Is LTV needed? I assume it's 100%
 
 	'''
-	def __init__(self,tranche_list, tranche_principal, WAC, ridership_forecast, rev_forecasts,rev_percentage, simulated_rates, maturity, tables_file, show_prints=False, show_plots=False):
+	def __init__(self,tranche_list, tranche_principal, WAC, ridership_forecast, rev_forecasts,rev_percentage, simulated_rates, maturity, tables_file, show_prints=False, show_plots=True):
 		self.tranche_list = tranche_list
 		self.tranche_principal = tranche_principal
 		self.WAC = WAC
@@ -41,14 +49,203 @@ class BART:
 		self.show_plots = show_plots
 		self.tables_file = tables_file
 		self.fi = fixed_income.FixedIncome()
-
+	
 		#Processed Values 
 		self.N = simulated_rates.shape[0] # Number of simulations
 		self.regular_classes = self.tranche_list[:]
 		if 'R' in self.regular_classes:
 			self.regular_classes.remove('R')
 
-	
+	def forecast_ridership(self):
+
+		# ------------------------------ #
+		# Data collection
+		# --------------------------------#
+
+		bart_fcst = pd.read_csv('BART_ridership_forecast.csv')
+		riders = {}
+		year_min = 2015
+		year_max = 2018
+		periods = []
+
+		print("Collecting data...\n")
+		for year in range(year_min, year_max+1):
+		    folder = 'ridership_'+str(year)
+		    for month in range(12):
+		        month_str = ('0'+str(month+1))[-2:]
+		        sheet1 = 'Weekday OD'
+		        sheet2 = 'Saturday OD'
+		        sheet3 = 'Sunday OD'
+		        if year == 2018:
+		            filename = 'Ridership_'+str(year)+month_str
+		            if month+1 >= 2:
+		                sheet1 = 'Avg Weekday OD'
+		                sheet2 = 'Avg Saturday OD'
+		                sheet3 = 'Avg Sunday OD'                
+		        else:
+		            filename = 'Ridership_'+calendar.month_name[month+1]+str(year)
+		        path_to_file = folder+'/'+filename+'.xlsx'
+		        #print(path_to_file)
+		        xlsx = pd.ExcelFile(path_to_file)
+		        df1 = pd.read_excel(xlsx, sheet1, skiprows=1)
+		        df2 = pd.read_excel(xlsx, sheet2, skiprows=1)
+		        df3 = pd.read_excel(xlsx, sheet3, skiprows=1)
+		        key = str(year) + month_str
+		        periods.append(key)
+		        riders[key] = [df1, df2, df3]
+
+		# ------------------------------ #
+		# Data processing
+		# --------------------------------#
+
+		last_period = str(year_max)+'12'
+		columns = riders[last_period][0].columns[1:-1]
+
+		# Weekday entries
+		wk_ent_np = np.zeros(((year_max-year_min+1)*12, len(columns)))
+		# Saturday entries
+		st_ent_np = np.zeros(((year_max-year_min+1)*12, len(columns)))
+		# Sunday entries
+		sn_ent_np = np.zeros(((year_max-year_min+1)*12, len(columns)))
+
+		for t, period in enumerate(periods):
+		    for c, col in enumerate(columns):
+		        df1 = riders[period][0]
+		        if col in df1:
+		            wk_ent_np[t, c] =  riders[period][0][col].iloc[-1]
+		            st_ent_np[t, c] =  riders[period][1][col].iloc[-1]
+		            sn_ent_np[t, c] =  riders[period][2][col].iloc[-1]
+
+		wk_ent = pd.DataFrame(wk_ent_np, columns=columns)
+		st_ent = pd.DataFrame(st_ent_np, columns=columns)
+		sn_ent = pd.DataFrame(sn_ent_np, columns=columns)
+
+		wk_ent['period'] = periods
+		st_ent['period'] = periods
+		sn_ent['period'] = periods
+
+		wk_ent = wk_ent.set_index('period')
+		st_ent = st_ent.set_index('period')
+		sn_ent = sn_ent.set_index('period')
+
+		# Total week entries
+		tt_ent = 5*wk_ent + st_ent + sn_ent
+		total = pd.DataFrame(tt_ent.iloc[:,:-5].sum(axis=1), columns=['old'])
+		total['new'] = tt_ent.iloc[:,-5:].sum(axis=1)
+
+		# ------------------------------ #
+		# Forecast
+		# --------------------------------#
+
+		old_diff = total['old'].diff()[1:]
+		model = SARIMAX(old_diff, order=(2,0,0), seasonal_order=(1,1,0,12))
+		model_fit = model.fit()
+		resid = model_fit.resid
+		total_last = total['old'].iloc[-1] + total['new'].iloc[-1]
+		forecast = (33-18)*12
+		pred_diff = np.array(model_fit.forecast(forecast))
+		pred_total_old = np.array(total['old'].iloc[-1] + np.cumsum(pred_diff))
+		pred_diff_adj = np.zeros(len(pred_diff))
+
+		prev = 0
+		pred_diff_cum = np.cumsum(pred_diff)
+		for i in range(int(forecast/12)):
+		    bart_pchange = 0
+		    bart_weight = 1
+		    last_riders = total_last + prev
+		    if i in bart_fcst.index:
+		        bart_pchange = bart_fcst.loc[i, 'Annual Change']
+		        bart_weight = bart_fcst.loc[i, 'Weight']
+		    model_change = pred_diff_cum[12*(i+1)-1] - prev
+		    bart_change = last_riders*bart_pchange
+		    prev = pred_diff_cum[12*(i+1)-1]
+		    final_change = bart_change*bart_weight + model_change*(1-bart_weight)
+		    pred_diff_adj[12*i:12*(i+1)] = pred_diff[12*i:12*(i+1)] + (final_change - model_change)/12
+
+		history = len(total['old'])
+		hist_total = (total['old']+ total['new'])*30/7
+		pred_total_adj = (total_last + np.cumsum(pred_diff_adj))*30/7
+
+		# ------------------------------ #
+		# Simulations
+		# --------------------------------#
+
+		# Normal parameters
+		mu, sigma = stats.norm.fit(np.array(resid))
+
+		n_sim = 1000
+		innovations = stats.norm.rvs(loc=0, scale=sigma, size=(n_sim, forecast))
+		sim_diff = innovations + pred_diff_adj
+		self.ridership_forecast = (total_last + np.cumsum(sim_diff, axis=1))*30/7
+
+		# ------------------------------ #
+		# Graphs
+		# --------------------------------#
+
+		self.show_plots = True
+		if self.show_plots:
+			fig, ax = plt.subplots(2,2, figsize=(15,10))
+			fontsize = 16
+			fontsize_leg = 12
+			data_plot = np.array(resid)/1e3
+
+			# Time series
+			ax[0,0].plot(data_plot)
+			ax[0,0].set_title('Time series of residual', fontsize=fontsize)
+			ax[0,0].set_xlabel('Month', fontsize=fontsize)
+			ax[0,0].set_ylabel('Riders (thousands)', fontsize=fontsize)
+
+			# Histogram
+			ax[0,1].hist(data_plot, bins=20)
+			ax[0,1].set_title('Histogram of residual', fontsize=fontsize)
+			ax[0,1].set_xlabel('Riders (thousands)', fontsize=fontsize)
+			ax[0,1].set_ylabel('Frequency', fontsize=fontsize)
+
+			# ACF
+			plot_acf(data_plot, ax=ax[1,0])
+			ax[1,0].set_title('ACF of residual', fontsize=fontsize)
+			ax[1,0].set_xlabel("Lag", fontsize=fontsize)
+			ax[1,0].set_ylabel("Autocorrelation", fontsize=fontsize)
+
+			# QQplot
+			sm.qqplot(data_plot, stats.norm, loc=mu, scale=sigma, line='45', fit=True, ax=ax[1,1])
+			ax[1,1].set_title('Normal', fontsize=fontsize)
+			ax[1,1].set_xlabel("Theoretical Quantiles", fontsize=fontsize)
+			ax[1,1].set_ylabel("Sample Quantiles", fontsize=fontsize)
+			fig.tight_layout()
+			fig.savefig('residual.png')
+
+			#--------------------------
+
+			# Expected forecast
+			fig, ax = plt.subplots(figsize=(15,7))		
+			ax.plot(np.arange(history), hist_total, label='History')
+			ax.plot(np.arange(history, history+forecast), pred_total_adj, label='Forecast')
+			ax.set_title('Total Ridership', fontsize=fontsize)
+			ax.set_xlabel('Month', fontsize=fontsize)
+			ax.set_ylabel('Riders', fontsize=fontsize)
+			ax.legend(loc = 'upper left', fontsize = fontsize_leg)
+			fig.tight_layout()
+			fig.savefig('expected_forecast.png')
+
+			#--------------------------
+
+			# Sample simulations
+			fig, ax = plt.subplots(figsize=(15,7))
+			ax.plot(np.arange(history), hist_total, label='History')
+			ax.plot(np.arange(history, history+forecast), pred_total_adj, label='Expected Forecast')
+			ax.plot(np.arange(history, history+forecast), self.ridership_forecast[0], label='Simulation 1')
+			ax.plot(np.arange(history, history+forecast), self.ridership_forecast[2], label='Simulation 2')
+			ax.set_title('Total Ridership', fontsize=fontsize)
+			ax.set_xlabel('Month', fontsize=fontsize)
+			ax.set_ylabel('Riders', fontsize=fontsize)
+			ax.legend(loc = 'upper left', fontsize = fontsize_leg)
+			fig.tight_layout()
+			fig.savefig('sample_simulations.png')
+
+
+			plt.show()
+
 	def calculate_cashflows(self):
 		"""
 			Given trance information, and revenue, calculate cashflows per trance
