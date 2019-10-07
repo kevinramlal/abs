@@ -250,15 +250,32 @@ class BART:
 		# Forecast Ridership
 		self.forecast_ridership()
 
-		# Fairs
+		# Fairs deterministic
+		#last_fair = 481.8/120.554 # FY18
+			# FY18 increase 2.7%
+			# FY16 increase 3.4%
+		#p_increase_2y = 0.02
+		#fares = np.ones(self.T)
+		#fares[1::2] = 1 + p_increase_2y
+		#fares = last_fair*np.cumprod(fares)
+		#self.revenue = self.ridership_forecast*fares.reshape(1,-1)
+
+		# Fairs stochastic
 		last_fair = 481.8/120.554 # FY18
 			# FY18 increase 2.7%
 			# FY16 increase 3.4%
-		p_increase_2y = 0.02
-		fares = np.ones(self.T)
-		fares[1::2] = 1 + p_increase_2y
-		fares = last_fair*np.cumprod(fares)
-		self.revenue = self.ridership_forecast*fares.reshape(1,-1)
+		fares_high = np.array([4.0787434, 3.2293254, 3.4738840, 3.6512020, 3.5051721])
+		fares_low =  np.array([0.4147587, 0.4195397, 0.6085524, 1.5142361, 0.7104166, 0.0599787])
+		np.random.seed(0)
+		Th = int(self.T/12/2)
+		rand_high = np.random.choice(fares_high, size=(self.N, Th))
+		rand_low = np.random.choice(fares_low, size=(self.N, Th+1))
+		fares_year = np.ones((self.N, Th*2+1))
+		fares_year[:, 1::2] = 1 + rand_high/100
+		fares_year[:, 0::2] = 1 + rand_low/100
+		fares_year = last_fair*np.cumprod(fares_year, axis=1)
+		fares = np.repeat(fares_year, 12, axis=1)
+		self.revenue = self.ridership_forecast*fares
 
 	def calculate_cashflows(self):
 		"""
