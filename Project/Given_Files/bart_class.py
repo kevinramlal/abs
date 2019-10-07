@@ -254,7 +254,7 @@ class BART:
 		last_fair = 481.8/120.554 # FY18
 			# FY18 increase 2.7%
 			# FY16 increase 3.4%
-		p_increase_2y = 0.03
+		p_increase_2y = 0.02
 		fares = np.ones(self.T)
 		fares[1::2] = 1 + p_increase_2y
 		fares = last_fair*np.cumprod(fares)
@@ -264,7 +264,7 @@ class BART:
 		"""
 			Given tranche information, and revenue, calculate cashflows per trance
 		"""
-		bond_spread_dict ={self.regular_classes[i]:self.bond_spread[i] for i in range(len(self.regular_classes))}
+		self.bond_spread_dict ={self.regular_classes[i]:self.bond_spread[i] for i in range(len(self.regular_classes))}
 		self.residual = np.zeros((self.N,self.T))
 
 		#Tranches
@@ -285,7 +285,7 @@ class BART:
 			#FIRST PASS
 			for cl in self.regular_classes:
 				prev_balance = self.bonds_balance[cl][:,month-1] #all simulations array for month
-				r_month = self.base_coupon_rate + bond_spread_dict[cl] # self.simulated_rates[:,month-1]
+				r_month = (self.base_coupon_rate + self.bond_spread_dict[cl])/12 # self.simulated_rates[:,month-1]
 				amortized_pmt = self.coupon_payment(r_month, self.T - month , prev_balance) #This should work as numpy array component wise multiplication
 				interest_accrued = prev_balance*r_month #also numpy array multiplication 
 				
@@ -402,7 +402,7 @@ class BART:
 	def calculate_bond_prices(self):
 
 		r = self.simulated_rates
-		Z = self.fi.hull_white_discount_factors_antithetic_path(r, dt=1/12)[:, :self.T]
+		
 		Nh = (int)(self.N/2)
 
 		# Calculatesimulated prices
@@ -410,6 +410,8 @@ class BART:
 		results = np.zeros((len(self.regular_classes), 3))
 		for i in range(len(self.regular_classes)):
 			cl = self.regular_classes[i]
+			r_class = r + self.bond_spread_dict[cl]
+			Z = self.fi.hull_white_discount_factors_antithetic_path(r_class, dt=1/12)[:, :self.T]
 			bonds_prices = np.sum((self.bonds_interest_cf[cl] + self.bonds_amort_cf[cl] + self.bonds_prepay_cf[cl])*Z, axis=1)
 			bonds_simulated_prices[cl] = (bonds_prices[:Nh] + bonds_prices[Nh:])/2
 
@@ -424,7 +426,8 @@ class BART:
 		self.tables_file.write(latex_table(results_df, caption = "Simulated Prices", label = "prices", index = True))
 
 		print(results_df)
-
+		print("Residual : {:,}".format(1566000000 - results_df['Average Price'].sum()))
+		return abs(float(1566000000 - results_df['Average Price'].sum()))
 		#return results_df 
 
 #TODO: Price by discounting 
