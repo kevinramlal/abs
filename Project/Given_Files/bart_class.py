@@ -40,11 +40,7 @@ class BART:
 	def __init__(self,tranche_list, tranche_principal, bond_spread, ridership_forecast, rev_forecasts,rev_percentage, simulated_rates, maturity, tables_file, show_prints=False, show_plots=False):>>>>>>> master
 		self.tranche_list = tranche_list
 		self.tranche_principal = tranche_principal
-<<<<<<< HEAD
-		self.bond_spread = bpond_spread
-=======
 		self.bond_spread = bond_spread
->>>>>>> 96fe8cbc71823e7340939b9cce408a3557a6df94
 		self.ridership_forecast = ridership_forecast
 		self.rev_forecasts = rev_forecasts
 		self.rev_percentage = rev_percentage
