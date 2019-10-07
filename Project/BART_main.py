@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import sys
+from scipy.optimize import minimize 
 sys.path.insert(1,'./Given_Files')
 
 # Private libraries
@@ -25,7 +26,7 @@ simulated_rates_A = hw1.simulate_interest_rates(n=n_simulations)
 # Bart initialization
 tranche_list = ['A1','A2','M1','M2','M3','R']
 
-tranching_system = 1
+tranching_system = 2
 
 if (tranching_system == 1):
     principal_proportions = [0.2, 0.2, 0.2, 0.2, 0.2]
@@ -35,15 +36,47 @@ if (tranching_system == 1):
     base_coupon_rate = 0.04
 elif (tranching_system == 2):
     tranche_principal = [313200000, 313200000, 313200000, 313200000, 313200000]
-    bond_spread = [0.0008, 0.0018, 0.0038, 0.0055, 0.0115]
-    base_coupon_rate = 0.04
+    bond_spread = [0.0005, 0.0015, 0.0035, 0.0055, 0.0075]
+    base_coupon_rate = 0.0234
 
-rev_percentage = 0.60  # 40% of ridership revenue is used to fund the entirety of non-labour operating expenses.
+rev_percentage = 0.60 # 40% of ridership revenue is used to fund the entirety of non-labour operating expenses.
 maturity = (33-18)*12 # months
 bart = bart_class.BART(tranche_list, tranche_principal, bond_spread, base_coupon_rate, rev_percentage, simulated_rates_A, maturity, tables_file, show_prints=True, show_plots=False)
 bart.forecast_revenue()
 bart.calculate_cashflows()
 bart.calculate_bond_prices()
+
+def optimized_rev(base_coupon):
+	bc = base_coupon
+	print(bc)
+	bart = bart_class.BART(tranche_list, tranche_principal, bond_spread, bc, rev_percentage, simulated_rates_A, maturity, tables_file, show_prints=True, show_plots=False)
+	bart.forecast_revenue()
+	bart.calculate_cashflows()
+	residual = bart.calculate_bond_prices()
+	return residual
+# 	return residual
+
+# cons = ({'type': 'ineq', 'fun': lambda x:  (1-x[0])},
+# 	{'type': 'ineq', 'fun': lambda x:  x[0]})
+# res = minimize(optimized_rev, x0 = 0.04, method='Nelder-Mead', constraints = cons)
+# print("KEVINS MAGIC: ", res.x)
+
+# def kevin_optimizer(start_percentage):
+# 	residual = 1000000
+# 	rev_p = start_percentage
+# 	while abs(residual) > 100000:
+# 		print(rev_p)
+# 		bart = bart_class.BART(tranche_list, tranche_principal, bond_spread, base_coupon_rate, rev_p, simulated_rates_A, maturity, tables_file, show_prints=True, show_plots=False)
+# 		bart.forecast_revenue()
+# 		bart.calculate_cashflows()
+# 		residual = bart.calculate_bond_prices()
+# 		if np.sign(residual) == 1:
+# 			rev_p += 0.01
+# 		else:
+# 			rev_p -= 0.01
+# 	return rev_p
+
+# print(kevin_optimizer(0.4))
 
 #plotting balance
 balances = bart.bonds_balance
@@ -52,10 +85,10 @@ x = np.arange(1,bart.T+1,1)
 
 for i in range(len(bart.regular_classes)):
 	plt.plot(x,balances_avg[i],label = bart.regular_classes[i])
-	plt.legend()
-	plt.show()
-# plt.legend()
-# plt.show()
+	# plt.legend()
+	# plt.show()
+plt.legend()
+plt.show()
 
 
 ## Pools initialization
