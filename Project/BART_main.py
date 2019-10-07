@@ -37,7 +37,7 @@ if (tranching_system == 1):
 elif (tranching_system == 2):
     tranche_principal = [313200000, 313200000, 313200000, 313200000, 313200000]
     bond_spread = [0.0005, 0.0015, 0.0035, 0.0055, 0.0075]
-    base_coupon_rate = 0.0234
+    base_coupon_rate = 0.025
 
 rev_percentage = 0.60 # 40% of ridership revenue is used to fund the entirety of non-labour operating expenses.
 maturity = (33-18)*12 # months
