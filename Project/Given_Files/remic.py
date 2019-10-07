@@ -504,7 +504,7 @@ class REMIC:
 		Z = self.fi.hull_white_discount_factors_antithetic_path(r, dt=1/12)[:, :self.T]
 		Nh = (int)(self.N/2)
 
-		# Calculate simulated prices
+		# Calculatesimulated prices
 		bonds_simulated_prices = {}
 		results = np.zeros((len(self.classes_ordered), 3))
 		for i in range(len(self.classes_ordered)):
@@ -522,7 +522,7 @@ class REMIC:
 
 		self.tables_file.write(latex_table(results_df, caption = "Simulated Prices", label = "prices", index = True))
 
-		return results_df
+		return results_df 
 
 	def calculate_CDS_NPV(self):
 
