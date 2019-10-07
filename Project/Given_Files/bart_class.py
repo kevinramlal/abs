@@ -26,20 +26,21 @@ class BART:
 		Inputs:
 		 tranche_list: List of Tranche names
 		 tranche_principal: List of Tranche initial principal
-		 WAC: weighted average INTEREST per bond 
-		 ridership_forecast:  Ridership Forecasts as np.array
-		 rev_forecasts: Revenue Forecasts as np.array
+		 bond_spread: list of spreads per bond: Rates (simulated) + spread 
+		 ridership_forecast:  Ridership Forecasts as np.array #to be added into class [N,T]
+		 rev_forecasts: Revenue Forecasts as np.array #to be added into class [N,T] N number of sumulations, T is number of months 
 		 rev_percentage: % of Revenue that goes toward paying tranches
-		 simulated_rates: Simulated Rates Monte Carlo
-		 maturity: Number of months until maturty
+		 simulated_rates: Simulated Rates Monte Carlo [N,T]
+		 maturity: Number of months until maturity  #all tranches have same maturity 
 
 		 TODO: Is LTV needed? I assume it's 100%
 
 	'''
-	def __init__(self,tranche_list, tranche_principal, WAC, ridership_forecast, rev_forecasts,rev_percentage, simulated_rates, maturity, tables_file, show_prints=False, show_plots=True):
+
+	def __init__(self,tranche_list, tranche_principal, bond_spread, ridership_forecast, rev_forecasts,rev_percentage, simulated_rates, maturity, tables_file, show_prints=False, show_plots=False):>>>>>>> master
 		self.tranche_list = tranche_list
 		self.tranche_principal = tranche_principal
-		self.WAC = WAC
+		self.bond_spread = bond_spread
 		self.ridership_forecast = ridership_forecast
 		self.rev_forecasts = rev_forecasts
 		self.rev_percentage = rev_percentage
@@ -53,7 +54,7 @@ class BART:
 		#Processed Values 
 		self.N = simulated_rates.shape[0] # Number of simulations
 		self.regular_classes = self.tranche_list[:]
-		if 'R' in self.regular_classes:
+		if 'R' in self.regular_classes: #might be kept 
 			self.regular_classes.remove('R')
 
 	def forecast_ridership(self):
@@ -248,78 +249,120 @@ class BART:
 
 	def calculate_cashflows(self):
 		"""
-			Given trance information, and revenue, calculate cashflows per trance
+			Given tranche information, and revenue, calculate cashflows per trance
 		"""
-		r_month = self.WAC/12/100
-		self.balance = np.zeros((self.N, self.T)) #do we need this?
-		self.balance[:,0] = self. 
-		amortization_pmt = np.zeros((self.N, self.T))
-		self.interest_pmt = np.zeros((self.N, self.T))
-		self.principal_pmt = np.zeros((self.N, self.T))
-
-		#TODO prepayment
-		self.prepayment = np.zeros((self.N, self.T))
-
-		#TODO default??
-		self.default = np.zeros((self.N, self.T))
-
-		#TODO default managment
+		bond_spread_dict ={self.regular_classes[i]:self.bond_spread[i] for i in range(len(self.regular_classes))}
+		self.residual = np.zeros((self.N,self.T))
 
 		#Tranches
-		self.bonds_balance = {k:np.zeros((self.N,self.T)) for k in tranche_list} #initialize our bonds principal
-		self.bonds_interest = {k:np.zeros((self.N,self.T)) for k in tranche_list} #keep track of interest
-		# self.bonds_principal = {k:np.zeros((self.N,self.T)) for k in tranche_list}
-		# self.bonds_extra_principal = {k:np.zeros((self.N,self.T)) for k in tranche_list} # Distributed due to excess spread after overcollateralization target has been achieved.
-		# self.bonds_principal_default = {k:np.zeros((self.N,self.T)) for k in tranche_list}
-		for i in range(len(tranche_list)):
-			self.bonds_balance[tranche_list[i]][:,0] = self.tranche_principal[i] #need to make sure balance is in same order as tranches
+		self.bonds_balance = {k:np.zeros((self.N,self.T)) for k in self.regular_classes} #initialize our bonds principal
+		self.bonds_interest = {k:np.zeros((self.N,self.T)) for k in self.regular_classes} #keep track of interest
+		for i in range(len(self.regular_classes)):
+			self.bonds_balance[self.regular_classes[i]][:,0] = self.tranche_principal[i] #This intializes all simulations 
 
 		#OK! Time for cash flows
 		for month in range(1,self.T):
-			pmt = self.revenue[month]*self.rev_percentage #monthly revenue x % 
+			pmt = self.revenue[:,month]*self.rev_percentage #monthly revenue x % for ALL simulations
 
 			#First run through
-			for cl in self.tranche_list:
-				prev_balance = self.bonds_balance[cl][:,month-1]
-				amortized_pmt = self.coupon_payment(r_month, self.T - month , prev_balance) #scheduled principal payments
-				interest_accrued = prev_balance*r_month
+			for cl in self.regular_classes:
+				prev_balance = self.bonds_balance[cl][:,month-1] #all simulations array for month 
+				r_month = self.simulated_rates[:,month-1] + bond_spread_dict[cl] #Add spread to each simulated libor rate at that month 
+				amortized_pmt = self.coupon_payment(r_month, self.T - month , prev_balance) #This should work as numpy array component wise multiplication
+				interest_accrued = prev_balance*r_month #also numpy array multiplication 
 				
-				#First we pay interest
-				if pmt - interest_pmt > 0:
-					pmt -= interest_accrued
-					interest_accrued = 0
+				pmt, self.bonds_balance[cl][:,month], self.bonds_interest[cl][:,month] = self.first_pass(pmt,prev_balance,amortized_pmt,interest_accrued)
 
-				else:
-					interest_accrued -= pmt
-					pmt = 0
+			pmt = self.second_pass(pmt,self.bonds_principal,month) #if any extra pmt then start paying off principal from tranches 
 
-				#Next we pay Scheduled principal if we have money 
-				if pmt - amortized_pmt > 0:
-					pmt -= amortized_pmt
-					new_bal = prev_balance - amortized_pmt
+			residual[:,month] = pmt #should be all zeroes unless theres left over cash after paying off ALL tranches 
 
-				else:
-					new_bal -= pmt
+		return self.bonds_balance, self.bonds_interest, self.residual
 
-				self.bonds_balance[cl][:,month] = new_bal + interest_accrued
-				self.bonds_interest[cl][:,month] = interest_accrued
+	def first_pass(self,pmt_array,prev_balance_array,amort_pmt_array,interest_accrued_array):
+		"""
+		pmt_array should be array of length N for a given month
+		prev_balance array: array of length N for given month
+		amort_pmt_array: array of length N
+		interest_accrued_array: array of Length n
 
-			#Second run through if we have extra money
+		Vectorized 
+		"""
+		# interest_accrued = []
+		# new_balance = []
+		# pmt_new = []
+
+		water_fall_payer = lambda x: max(0,x) #x should be Interest - Payment for interest, then Amort Bal - Payment for principal
+		pmt_after_pay = lambda x: max(0,x) #reverse order of operations as previous 
+
+		interest_accrued = np.array(list(map(water_fall_payer,(interest_accrued_array - pmt_array))))
+		pmt_after_interest = np.array(list(map(pmt_after_pay,(pmt_array - interest_accrued_array))))
+
+		amort_pay_deduct =  np.array(list(map(water_fall_payer,(amort_pmt_array - pmt_after_interest)))) #Either 0 
+		pmt_after_princpal = np.array(list(map(pmt_after_pay, (pmt_after_interest - amort_pmt_array))))
+		new_balance  = prev_balance_array - amort_pmt_array + amort_pay_deduct + interest_accrued #(Prev Balance - Amortization + Deduction from Amort (either 0 or amort - pmt)) + Interest Accrus 
+
+		pmt_new = pmt_after_princpal
+
+		# for i in range(len(pmt_array)): #loop through interatation 
+		# 	int_acc = interest_accrued_array[i]
+		# 	prev_bal = prev_balance_array[i]
+		# 	pmt_sim = pmt[i]
+		# 	amort_pmt = amort_pmt_array[i]
+
+		# 	#first interest payments
+		# 	if pmt_sim - int_acc > 0:
+		# 		pmt_sim -= int_acc
+		# 		int_acc = 0
+		# 	else:
+		# 		int_acc -= pmt_sim
+		# 		pmt_sim = 0
+
+		# 	if pmt_sim - amort_pmt >0:
+		# 		pmt_sim -= amort_pmt
+		# 		new_bal = prev_bal - amort_pmt
+		# 	else:
+		# 		new_bal = prev_bal - pmt_sim
+		# 		pmt_sim = 0
+
+		# 	interest_accrued.append(int_acc)
+		# 	pmt_new.append(pmt_sim)
+		# 	new_balance.append(new_bal + int_acc)
+
+		return pmt_new,new_balance,interest_accrued
+
+	def extra_pass(self,pmt_array,bonds_balance,month):
+		"""
+		TODO: Vectorize 
+		"""
+
+		pmt_new = []
+		 
+		for j in range(len(pmt_array)):
+			pmt_sim = pmt_array[j]
+
 			i = 0
-			while pmt > 0:
-				pmt_temp = max(0,pmt - self.bonds_balance[self.tranche_list[i][:month]]) #Remaining pmt is either 0 or left over from tranches in priority order
-				self.bonds_balance[self.tranche_list[i][:month]] = max(0,self.bonds_balance[self.tranche_list[i][:month]] - pmt) #Update balance
-				pmt = pmt_temp
+			while pmt_sim > 0:
+				pmt_temp = max(0,pmt_sim - self.bonds_balance[self.regular_classes[i]][j,month]) #Remaining pmt is either 0 or left over from tranches in priority order
+				self.bonds_balance[self.regular_classes[i]][j,month] = max(0,self.bonds_balance[self.regular_classes[i]][j,month] - pmt_sim) #Update balance
+				pmt_sim = pmt_temp
 				i += 1
-				
+			pmt_new.append(pmt_sim) #should all be zeroes theoretically unless extra left over afte ALL tranche principals paid off 
+
+		return pmt_new
+
+
+	
+	def coupon_payment(self, r_month, months_remaining, balance):
+		return r_month*balance/(1-1/(1+r_month)**months_remaining)
 
 
 
 
-
-
-
-
+#TODO: Price by discounting 
+#TODO: Duration, Convexity, OAS - to make it par
+#TODO: CDS Pricing
+#TODO: 
 
 
 
