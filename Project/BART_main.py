@@ -24,20 +24,26 @@ simulated_rates_A = hw1.simulate_interest_rates(n=n_simulations)
 
 # Bart initialization
 tranche_list = ['A1','A2','M1','M2','M3','R']
-tranche_principal = [313200000, 313200000, 31320000, 31320000, 31320000]
-bond_spread = [0.0008, 0.0018, 0.0038, 0.0055, 0.0115]
-base_coupon_rate = 0.02
-rev_percentage = 0.6
+
+tranching_system = 1
+
+if (tranching_system == 1):
+    principal_proportions = [0.2, 0.2, 0.2, 0.2, 0.2]
+    tranche_principal = [x * 1566000000 for x in principal_proportions]
+    print (tranche_principal)
+    bond_spread = [0.0008, 0.0018, 0.0038, 0.0055, 0.0115]
+    base_coupon_rate = 0.04
+elif (tranching_system == 2):
+    tranche_principal = [313200000, 313200000, 313200000, 313200000, 313200000]
+    bond_spread = [0.0008, 0.0018, 0.0038, 0.0055, 0.0115]
+    base_coupon_rate = 0.04
+
+rev_percentage = 0.60  # 40% of ridership revenue is used to fund the entirety of non-labour operating expenses.
 maturity = (33-18)*12 # months
 bart = bart_class.BART(tranche_list, tranche_principal, bond_spread, base_coupon_rate, rev_percentage, simulated_rates_A, maturity, tables_file, show_prints=True, show_plots=False)
 bart.forecast_revenue()
 bart.calculate_cashflows()
 bart.calculate_bond_prices()
-
-
-
-
-
 
 ## Pools initialization
 #pool_origination_date = '3/27/2006'
@@ -46,8 +52,8 @@ bart.calculate_bond_prices()
 #classes_info = pd.read_csv('./Given_Files/classes_general_info.csv', thousands=',')
 #principal_sequential_pay = {'1': ['A2','A3','M1','M2','M3','M4','M5','M6','M7','M8']}
 #accruals_sequential_pay = {}
-## previous_rates = [0.026647, 0.031206, 0.034613] # TREASURY 10 YR 
-#previous_rates = [0.012075, 0.011804872, 0.01149797086] # LIBOR 3M 
+## previous_rates = [0.026647, 0.031206, 0.034613] # TREASURY 10 YR
+#previous_rates = [0.012075, 0.011804872, 0.01149797086] # LIBOR 3M
 #simulated_lagged_10_year_rates_A = hw1.calculate_T_year_rate_APR(simulated_rates_A, lag=3, horizon=10, previous_rates=previous_rates)
 #hw_remic = remic.REMIC(pool_origination_date, evaluation_date, pools_info, classes_info, principal_sequential_pay, accruals_sequential_pay, simulated_rates_A, tables_file, show_prints=True, show_plots=True)
 #
