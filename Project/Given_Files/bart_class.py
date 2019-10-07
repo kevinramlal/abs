@@ -7,6 +7,7 @@ from scipy.optimize import fsolve
 from datetime import datetime
 import time
 import calendar
+import os
 
 import statsmodels.api as sm
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
@@ -37,13 +38,12 @@ class BART:
 
 	'''
 
-	def __init__(self,tranche_list, tranche_principal, bond_spread, rev_percentage, simulated_rates, maturity, tables_file, show_prints=False, show_plots=False):
+	def __init__(self, tranche_list, tranche_principal, bond_spread, base_coupon_rate, rev_percentage, simulated_rates, maturity, tables_file, show_prints=False, show_plots=False):
 		self.tranche_list = tranche_list
 		self.tranche_principal = tranche_principal
 		self.bond_spread = bond_spread
-		# self.ridership_forecast = ridership_forecast #should we initiaize here?
-		# self.rev_forecasts = rev_forecasts
 		self.rev_percentage = rev_percentage
+		self.base_coupon_rate = base_coupon_rate
 		self.simulated_rates = simulated_rates
 		self.T = maturity #the input should be already in the form of Months 
 		self.show_prints = show_prints
@@ -57,13 +57,14 @@ class BART:
 		if 'R' in self.regular_classes: #might be kept 
 			self.regular_classes.remove('R')
 
-	def forecast_ridership(self, forecast_horizon):
+	def forecast_ridership(self):
 
 		# ------------------------------ #
 		# Data collection
 		# --------------------------------#
 
-		bart_fcst = pd.read_csv('BART_ridership_forecast.csv')
+		home_dir = os.path.dirname(__file__)
+		bart_fcst = pd.read_csv(home_dir +'/BART_ridership_forecast.csv')
 		riders = {}
 		year_min = 2015
 		year_max = 2018
@@ -85,7 +86,7 @@ class BART:
 		                sheet3 = 'Avg Sunday OD'                
 		        else:
 		            filename = 'Ridership_'+calendar.month_name[month+1]+str(year)
-		        path_to_file = folder+'/'+filename+'.xlsx'
+		        path_to_file = home_dir +'/'+folder+'/'+filename+'.xlsx'
 		        #print(path_to_file)
 		        xlsx = pd.ExcelFile(path_to_file)
 		        df1 = pd.read_excel(xlsx, sheet1, skiprows=1)
@@ -140,16 +141,16 @@ class BART:
 
 		old_diff = total['old'].diff()[1:]
 		model = SARIMAX(old_diff, order=(2,0,0), seasonal_order=(1,1,0,12))
-		model_fit = model.fit()
+		model_fit = model.fit(disp=0)
 		resid = model_fit.resid
 		total_last = total['old'].iloc[-1] + total['new'].iloc[-1]
-		pred_diff = np.array(model_fit.forecast(forecast_horizon))
+		pred_diff = np.array(model_fit.forecast(self.T))
 		pred_total_old = np.array(total['old'].iloc[-1] + np.cumsum(pred_diff))
 		pred_diff_adj = np.zeros(len(pred_diff))
 
 		prev = 0
 		pred_diff_cum = np.cumsum(pred_diff)
-		for i in range(int(forecast_horizon/12)):
+		for i in range(int(self.T/12)):
 		    bart_pchange = 0
 		    bart_weight = 1
 		    last_riders = total_last + prev
@@ -174,7 +175,7 @@ class BART:
 		mu, sigma = stats.norm.fit(np.array(resid))
 
 		n_sim = 1000
-		innovations = stats.norm.rvs(loc=0, scale=sigma, size=(n_sim, forecast_horizon))
+		innovations = stats.norm.rvs(loc=0, scale=sigma, size=(n_sim, self.T))
 		sim_diff = innovations + pred_diff_adj
 		self.ridership_forecast = (total_last + np.cumsum(sim_diff, axis=1))*30/7 #we get the forecast here then 
 
@@ -182,7 +183,6 @@ class BART:
 		# Graphs
 		# --------------------------------#
 
-		self.show_plots = True
 		if self.show_plots:
 			fig, ax = plt.subplots(2,2, figsize=(15,10))
 			fontsize = 16
@@ -220,7 +220,7 @@ class BART:
 			# Expected forecast
 			fig, ax = plt.subplots(figsize=(15,7))		
 			ax.plot(np.arange(history), hist_total, label='History')
-			ax.plot(np.arange(history, history+forecast_horizon), pred_total_adj, label='Forecast')
+			ax.plot(np.arange(history, history+self.T), pred_total_adj, label='Forecast')
 			ax.set_title('Total Ridership', fontsize=fontsize)
 			ax.set_xlabel('Month', fontsize=fontsize)
 			ax.set_ylabel('Riders', fontsize=fontsize)
@@ -233,9 +233,9 @@ class BART:
 			# Sample simulations
 			fig, ax = plt.subplots(figsize=(15,7))
 			ax.plot(np.arange(history), hist_total, label='History')
-			ax.plot(np.arange(history, history+forecast_horizon), pred_total_adj, label='Expected Forecast')
-			ax.plot(np.arange(history, history+forecast_horizon), self.ridership_forecast[0], label='Simulation 1')
-			ax.plot(np.arange(history, history+forecast_horizon), self.ridership_forecast[2], label='Simulation 2')
+			ax.plot(np.arange(history, history+self.T), pred_total_adj, label='Expected Forecast')
+			ax.plot(np.arange(history, history+self.T), self.ridership_forecast[0], label='Simulation 1')
+			ax.plot(np.arange(history, history+self.T), self.ridership_forecast[2], label='Simulation 2')
 			ax.set_title('Total Ridership', fontsize=fontsize)
 			ax.set_xlabel('Month', fontsize=fontsize)
 			ax.set_ylabel('Riders', fontsize=fontsize)
@@ -247,11 +247,8 @@ class BART:
 			plt.show()
 
 	def forecast_revenue(self):
-		forecast = (33-18)*12
-		#self.T = forecast
-
 		# Forecast Ridership
-		self.forecast_ridership(forecast)
+		self.forecast_ridership()
 
 		# Fairs
 		last_fair = 481.8/120.554 # FY18
@@ -261,7 +258,7 @@ class BART:
 		fares = np.ones(self.T)
 		fares[1::2] = 1 + p_increase_2y
 		fares = last_fair*np.cumprod(fares)
-		self.forecast_revenue = self.ridership_forecast*fares.reshape(1,-1)
+		self.revenue = self.ridership_forecast*fares.reshape(1,-1)
 
 	def calculate_cashflows(self):
 		"""
@@ -287,8 +284,8 @@ class BART:
 
 			#FIRST PASS
 			for cl in self.regular_classes:
-				prev_balance = self.bonds_balance[cl][:,month-1] #all simulations array for month 
-				r_month = self.simulated_rates[:,month-1] + bond_spread_dict[cl] #Add spread to each simulated libor rate at that month 
+				prev_balance = self.bonds_balance[cl][:,month-1] #all simulations array for month
+				r_month = self.base_coupon_rate + bond_spread_dict[cl] # self.simulated_rates[:,month-1]
 				amortized_pmt = self.coupon_payment(r_month, self.T - month , prev_balance) #This should work as numpy array component wise multiplication
 				interest_accrued = prev_balance*r_month #also numpy array multiplication 
 				
@@ -394,11 +391,9 @@ class BART:
 		# 	pmt_new.append(pmt_sim) #should all be zeroes theoretically unless extra left over afte ALL tranche principals paid off 
 
 		new_cf = np.minimum(pmt_array,balance_array) #either full balance or full pmt 
-		new_balance = np.maximum((balance_array - pmt),0) #if enough money to pay off balance, then 0, else difference
-		new_pmt = np.maximum((pmt - balance),0) #new pmt is residual after removing balance, or 0
-		return pmt_new, new_balance, new_cf 
-
-
+		new_balance = np.maximum((balance_array - pmt_array),0) #if enough money to pay off balance, then 0, else difference
+		new_pmt = np.maximum((pmt_array - balance_array),0) #new pmt is residual after removing balance, or 0
+		return new_pmt, new_balance, new_cf 
 	
 	def coupon_payment(self, r_month, months_remaining, balance):
 		return r_month*balance/(1-1/(1+r_month)**months_remaining)
@@ -424,11 +419,13 @@ class BART:
 			results[i, 2] = results[i, 1]/np.sqrt(Nh)
 
 		results_df = pd.DataFrame(results, columns=['Average Price', 'Std. Deviation', 'Std. Error'])
-		results_df.index = self.classes_ordered
+		results_df.index = self.regular_classes
 
 		self.tables_file.write(latex_table(results_df, caption = "Simulated Prices", label = "prices", index = True))
 
-		return results_df 
+		print(results_df)
+
+		#return results_df 
 
 #TODO: Price by discounting 
 #TODO: Duration, Convexity, OAS - to make it par
