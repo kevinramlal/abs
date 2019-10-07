@@ -45,6 +45,19 @@ bart.forecast_revenue()
 bart.calculate_cashflows()
 bart.calculate_bond_prices()
 
+#plotting balance
+balances = bart.bonds_balance
+balances_avg = [np.mean(v,axis = 0) for k,v in balances.items()]
+x = np.arange(1,bart.T+1,1)
+
+for i in range(len(bart.regular_classes)):
+	plt.plot(x,balances_avg[i],label = bart.regular_classes[i])
+	plt.legend()
+	plt.show()
+# plt.legend()
+# plt.show()
+
+
 ## Pools initialization
 #pool_origination_date = '3/27/2006'
 #evaluation_date = '6/30/2009'
