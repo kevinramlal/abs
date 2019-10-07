@@ -57,7 +57,7 @@ class BART:
 		if 'R' in self.regular_classes: #might be kept 
 			self.regular_classes.remove('R')
 
-	def forecast_ridership(self):
+	def forecast_ridership(self, forecast_horizon):
 
 		# ------------------------------ #
 		# Data collection
@@ -143,14 +143,13 @@ class BART:
 		model_fit = model.fit()
 		resid = model_fit.resid
 		total_last = total['old'].iloc[-1] + total['new'].iloc[-1]
-		forecast = (33-18)*12
-		pred_diff = np.array(model_fit.forecast(forecast))
+		pred_diff = np.array(model_fit.forecast(forecast_horizon))
 		pred_total_old = np.array(total['old'].iloc[-1] + np.cumsum(pred_diff))
 		pred_diff_adj = np.zeros(len(pred_diff))
 
 		prev = 0
 		pred_diff_cum = np.cumsum(pred_diff)
-		for i in range(int(forecast/12)):
+		for i in range(int(forecast_horizon/12)):
 		    bart_pchange = 0
 		    bart_weight = 1
 		    last_riders = total_last + prev
@@ -175,7 +174,7 @@ class BART:
 		mu, sigma = stats.norm.fit(np.array(resid))
 
 		n_sim = 1000
-		innovations = stats.norm.rvs(loc=0, scale=sigma, size=(n_sim, forecast))
+		innovations = stats.norm.rvs(loc=0, scale=sigma, size=(n_sim, forecast_horizon))
 		sim_diff = innovations + pred_diff_adj
 		self.ridership_forecast = (total_last + np.cumsum(sim_diff, axis=1))*30/7
 
@@ -221,7 +220,7 @@ class BART:
 			# Expected forecast
 			fig, ax = plt.subplots(figsize=(15,7))		
 			ax.plot(np.arange(history), hist_total, label='History')
-			ax.plot(np.arange(history, history+forecast), pred_total_adj, label='Forecast')
+			ax.plot(np.arange(history, history+forecast_horizon), pred_total_adj, label='Forecast')
 			ax.set_title('Total Ridership', fontsize=fontsize)
 			ax.set_xlabel('Month', fontsize=fontsize)
 			ax.set_ylabel('Riders', fontsize=fontsize)
@@ -234,9 +233,9 @@ class BART:
 			# Sample simulations
 			fig, ax = plt.subplots(figsize=(15,7))
 			ax.plot(np.arange(history), hist_total, label='History')
-			ax.plot(np.arange(history, history+forecast), pred_total_adj, label='Expected Forecast')
-			ax.plot(np.arange(history, history+forecast), self.ridership_forecast[0], label='Simulation 1')
-			ax.plot(np.arange(history, history+forecast), self.ridership_forecast[2], label='Simulation 2')
+			ax.plot(np.arange(history, history+forecast_horizon), pred_total_adj, label='Expected Forecast')
+			ax.plot(np.arange(history, history+forecast_horizon), self.ridership_forecast[0], label='Simulation 1')
+			ax.plot(np.arange(history, history+forecast_horizon), self.ridership_forecast[2], label='Simulation 2')
 			ax.set_title('Total Ridership', fontsize=fontsize)
 			ax.set_xlabel('Month', fontsize=fontsize)
 			ax.set_ylabel('Riders', fontsize=fontsize)
@@ -246,6 +245,23 @@ class BART:
 
 
 			plt.show()
+
+	def forecast_revenue(self):
+		forecast = (33-18)*12
+		#self.T = forecast
+
+		# Forecast Ridership
+		self.forecast_ridership(forecast)
+
+		# Fairs
+		last_fair = 481.8/120.554 # FY18
+			# FY18 increase 2.7%
+			# FY16 increase 3.4%
+		p_increase_2y = 0.03
+		fares = np.ones(self.T)
+		fares[1::2] = 1 + p_increase_2y
+		fares = last_fair*np.cumprod(fares)
+		self.forecast_revenue = self.ridership_forecast*fares.reshape(1,-1)
 
 	def calculate_cashflows(self):
 		"""
