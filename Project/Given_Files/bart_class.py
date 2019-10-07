@@ -248,7 +248,7 @@ class BART:
 
 	def forecast_revenue(self):
 		forecast = (33-18)*12
-		self.T = forecast
+		#self.T = forecast
 
 		# Forecast Ridership
 		self.forecast_ridership(forecast)
