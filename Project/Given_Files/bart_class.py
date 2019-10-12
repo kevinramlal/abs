@@ -442,7 +442,7 @@ class BART:
 
 		self.tables_file.write(latex_table(results_df, caption = "Simulated Prices", label = "prices", index = True))
 
-		print(results_df)
+		print("Results :\n ",results_df)
 		print("Residual : {:,}".format(1566000000 - results_df['Average Price'].sum()))
 		return abs(float(1566000000 - results_df['Average Price'].sum()))
 		#return results_df 
