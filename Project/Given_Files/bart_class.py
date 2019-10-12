@@ -416,9 +416,9 @@ class BART:
 		return r_month*balance/(1-1/(1+r_month)**months_remaining)
 
 
-	def calculate_bond_prices(self):
+	def calculate_bond_prices(self, dr=0, show_prints=False):
 
-		r = self.simulated_rates
+		r = self.simulated_rates + dr
 		
 		Nh = (int)(self.N/2)
 
@@ -440,14 +440,42 @@ class BART:
 		results_df = pd.DataFrame(results, columns=['Average Price', 'Std. Deviation', 'Std. Error'])
 		results_df.index = self.regular_classes
 
-		self.tables_file.write(latex_table(results_df, caption = "Simulated Prices", label = "prices", index = True))
+		if show_prints:
+			self.tables_file.write(latex_table(results_df, caption = "Simulated Prices", label = "prices", index = True))
+			print("Results :\n\n ",results_df)
+			print("Residual : {:,}".format(1566000000 - results_df['Average Price'].sum()))
 
-		print("Results :\n ",results_df)
-		print("Residual : {:,}".format(1566000000 - results_df['Average Price'].sum()))
-		return abs(float(1566000000 - results_df['Average Price'].sum()))
-		#return results_df 
+		return [abs(float(1566000000 - results_df['Average Price'].sum())), results_df]
 
-#TODO: Price by discounting 
+	def calculate_duration_convexity(self):
+
+		dr = 0.0001
+		simulation_summary = self.calculate_bond_prices(dr=0)[1]
+		simulation_summary_up = self.calculate_bond_prices(dr=dr)[1]
+		simulation_summary_dn = self.calculate_bond_prices(dr=-dr)[1]
+
+		dur = np.zeros(len(self.regular_classes))
+		conv = np.zeros(len(self.regular_classes))
+
+		P = simulation_summary['Average Price']
+		P_up = simulation_summary_up['Average Price']
+		P_dn = simulation_summary_dn['Average Price']
+
+		dur = (P_dn-P_up)/(P*2*dr)
+		conv = (P_dn+P_up-2*P)/(P*dr**2)
+
+		dur_conv = np.zeros((2,len(self.regular_classes)))
+		dur_conv[0, :] = dur
+		dur_conv[1, :] = conv
+
+		dur_conv = pd.DataFrame(dur_conv.T, columns = ['Duration', 'Convexity'])
+		dur_conv.index = self.regular_classes
+
+		self.tables_file.write(latex_table(dur_conv.round(2), caption = "Duration and Convexity", label = "dur_conv", index = True))
+		print('\n')
+		print(dur_conv)
+
+
 #TODO: Duration, Convexity, OAS - to make it par
 #TODO: CDS Pricing
 #TODO: 
