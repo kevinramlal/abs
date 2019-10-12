@@ -1,0 +1,36 @@
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrrr}
+\toprule
+{} &  Average Price &  Std. Deviation &     Std. Error \\
+\midrule
+A1 &   3.177745e+08 &    3.124211e+06 &  139718.974968 \\
+A2 &   3.165240e+08 &    2.524332e+06 &  112891.565456 \\
+M1 &   3.129458e+08 &    3.262457e+06 &  145901.506140 \\
+M2 &   3.103263e+08 &    3.368751e+06 &  150655.137003 \\
+M3 &   3.084294e+08 &    3.785663e+06 &  169300.007363 \\
+\bottomrule
+\end{tabular}
+\caption{Simulated Prices}
+\label{tab:prices}
+\end{table}
+
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lrr}
+\toprule
+{} &  Duration &  Convexity \\
+\midrule
+A1 &      1.30 &       2.17 \\
+A2 &      2.74 &       8.70 \\
+M1 &      3.47 &      14.29 \\
+M2 &      3.90 &      18.54 \\
+M3 &      4.17 &      21.73 \\
+\bottomrule
+\end{tabular}
+\caption{Duration and Convexity}
+\label{tab:dur_conv}
+\end{table}
+

@@ -44,7 +44,8 @@ maturity = (33-18)*12 # months
 bart = bart_class.BART(tranche_list, tranche_principal, bond_spread, base_coupon_rate, rev_percentage, simulated_rates_A, maturity, tables_file, show_prints=True, show_plots=False)
 bart.forecast_revenue()
 bart.calculate_cashflows()
-bart.calculate_bond_prices()
+bart.calculate_bond_prices(show_prints=True)
+bart.calculate_duration_convexity()
 
 def optimized_rev(base_coupon):
 	bc = base_coupon
@@ -52,7 +53,7 @@ def optimized_rev(base_coupon):
 	bart = bart_class.BART(tranche_list, tranche_principal, bond_spread, bc, rev_percentage, simulated_rates_A, maturity, tables_file, show_prints=True, show_plots=False)
 	bart.forecast_revenue()
 	bart.calculate_cashflows()
-	residual = bart.calculate_bond_prices()
+	residual = bart.calculate_bond_prices()[0]
 	return residual
 # 	return residual
 
